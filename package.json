@@ -1,0 +1,12 @@
+{
+  "name": "movies_app_api",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "author": "phan xuan anh tai",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
