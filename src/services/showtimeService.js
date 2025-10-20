@@ -1,10 +1,20 @@
 import { showtimeModel } from '~/models/showtimeModel'
 
 const holdSeats = async (userId, showtimeId, seatNumbers) => {
-  const HOLD_DURATION_MINUTES = 10
+  const HOLD_DURATION_MINUTES = 1 // Thời gian giữ ghế
   const heldUntil = new Date(Date.now() + HOLD_DURATION_MINUTES * 60 * 1000)
 
-  // Gọi hàm update trong model để đảm bảo atomic
+  // Kiểm tra tính available của tất cả ghế trước
+  const showtime = await showtimeModel.findOneById(showtimeId)
+  const unavailableSeats = showtime.seats.filter(seat =>
+    seatNumbers.includes(seat.seatNumber) && seat.status !== 'available'
+  )
+
+  if (unavailableSeats.length > 0) {
+    throw new Error(`Seats ${unavailableSeats.map(s => s.seatNumber).join(', ')} are not available`)
+  }
+
+  // Thực hiện hold
   const result = await showtimeModel.updateSeatsStatus(
     showtimeId,
     seatNumbers,
@@ -13,16 +23,39 @@ const holdSeats = async (userId, showtimeId, seatNumbers) => {
     heldUntil
   )
 
-  // Kiểm tra xem số lượng ghế được cập nhật có khớp với số lượng yêu cầu không
-  if (result.modifiedCount !== seatNumbers.length) {
-    // Có thể một hoặc vài ghế đã bị người khác giữ trước
-    // Cần có logic để hoàn tác lại những ghế đã giữ thành công (nếu có)
-    throw new Error('Some seats are not available. Please try again.')
+  // CHỈ KIỂM TRA modifiedCount > 0, không so sánh với seatNumbers.length
+  if (result.modifiedCount === 0) {
+    throw new Error('Seat reservation failed due to concurrent booking. Please try again.')
+  }
+
+  // Kiểm tra lại xem tất cả ghế đã được hold thành công chưa
+  const updatedShowtime = await showtimeModel.findOneById(showtimeId)
+  const successfullyHeldSeats = updatedShowtime.seats.filter(seat =>
+    seatNumbers.includes(seat.seatNumber) &&
+    seat.status === 'held' &&
+    seat.heldBy === userId
+  )
+
+  if (successfullyHeldSeats.length !== seatNumbers.length) {
+    // Rollback nếu có ghế không được hold thành công
+    await showtimeModel.rollbackSeatHold(showtimeId, seatNumbers, userId)
+    throw new Error('Some seats could not be held. Please try again.')
   }
 
   return { message: 'Seats held successfully', heldUntil }
 }
 
+const getShowtimeDetails = async (showtimeId) => {
+  const showtime = await showtimeModel.findOneById(showtimeId)
+  if (!showtime) {
+    throw new Error('Showtime not found')
+  }
+  return showtime
+}
+
+// DÒNG QUAN TRỌNG NHẤT LÀ ĐÂY
+// Hãy chắc chắn rằng bạn export một đối tượng có tên là showtimeService
 export const showtimeService = {
+  getShowtimeDetails,
   holdSeats
 }

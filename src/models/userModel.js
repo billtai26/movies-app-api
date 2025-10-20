@@ -11,7 +11,12 @@ const USER_COLLECTION_SCHEMA = Joi.object({
   email: Joi.string().required().email().trim().strict(),
   password: Joi.string().required().min(6).trim().strict(),
 
-  // Thêm các trường mới
+  // Thêm các trường cho xác thực email
+  isVerified: Joi.boolean().default(false),
+  emailVerificationToken: Joi.string().default(null),
+  emailVerificationExpire: Joi.date().default(null),
+
+  // Thêm các trường cho đặt lại mật khẩu
   resetPasswordToken: Joi.string().default(null),
   resetPasswordExpire: Joi.date().default(null),
 
@@ -77,9 +82,42 @@ const getResetPasswordToken = (user) => {
 
   // Băm token và lưu vào CSDL
   const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex')
-  const expireDate = Date.now() + 10 * 60 * 1000 // Hết hạn sau 10 phút
+  // SỬA LẠI DÒNG NÀY
+  const expireDate = new Date(Date.now() + 15 * 60 * 1000)
 
   return { resetToken, hashedToken, expireDate }
+}
+
+// HÀM MỚI: TÌM USER BẰNG TOKEN ĐÃ BĂM
+const findOneByValidResetToken = async (hashedToken) => {
+  try {
+    const result = await GET_DB().collection(USER_COLLECTION_NAME).findOne({
+      resetPasswordToken: hashedToken,
+      // Đảm bảo token chưa hết hạn
+      resetPasswordExpire: { $gt: new Date() }
+    })
+    return result
+  } catch (error) { throw new Error(error) }
+}
+
+// HÀM MỚI: TẠO TOKEN XÁC THỰC EMAIL (tương tự reset password)
+const getEmailVerificationToken = () => {
+  const verificationToken = crypto.randomBytes(20).toString('hex')
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex')
+  // Token có hiệu lực trong 24 giờ
+  const expireDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  return { verificationToken, hashedToken, expireDate }
+}
+
+// HÀM MỚI: TÌM USER BẰNG TOKEN XÁC THỰC
+const findOneByValidVerificationToken = async (hashedToken) => {
+  return await GET_DB().collection(USER_COLLECTION_NAME).findOne({
+    emailVerificationToken: hashedToken,
+    emailVerificationExpire: { $gt: new Date() }
+  })
 }
 
 export const userModel = {
@@ -89,5 +127,8 @@ export const userModel = {
   findOneById,
   findOneByEmail,
   update,
-  getResetPasswordToken
+  getResetPasswordToken,
+  findOneByValidResetToken,
+  getEmailVerificationToken,
+  findOneByValidVerificationToken
 }

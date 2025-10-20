@@ -6,7 +6,7 @@ const SHOWTIME_COLLECTION_NAME = 'showtimes'
 
 // Hàm tìm và hủy các ghế đã hết hạn giữ
 const releaseSeats = async () => {
-  console.log('Running a job to release expired held seats...')
+  // console.log('Running a job to release expired held seats...')
 
   const filter = {
     'seats.status': 'held',
