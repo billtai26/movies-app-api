@@ -1,13 +1,12 @@
 import { userService } from '~/services/userService'
 
-const register = async (req, res) => {
+// Sửa lại hàm register để nhận thông báo mới
+const register = async (req, res, next) => {
   try {
-    // Dữ liệu đã được validate ở tầng validation
-    const createdUser = await userService.register(req.body)
-    res.status(201).json(createdUser)
+    const result = await userService.register(req.body)
+    res.status(201).json(result)
   } catch (error) {
-    // Dùng res.status(...).json(...) để trả về lỗi một cách tường minh
-    res.status(409).json({ errors: error.message }) // 409 Conflict khi user đã tồn tại
+    next(error)
   }
 }
 
@@ -30,8 +29,48 @@ const getUserProfile = async (req, res) => {
   }
 }
 
+// HÀM MỚI
+const forgotPassword = async (req, res, next) => {
+  try {
+    const result = await userService.forgotPassword(req.body.email)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// HÀM MỚI
+// eslint-disable-next-line no-unused-vars
+const resetPassword = async (req, res, next) => {
+  try {
+    const resetToken = req.params.resetToken
+    const newPassword = req.body.password
+    const result = await userService.resetPassword(resetToken, newPassword)
+    res.status(200).json(result)
+  } catch (error) {
+    // Nếu service ném lỗi (token sai/hết hạn), trả về 400
+    // Bạn nên có một middleware xử lý lỗi tập trung để làm việc này gọn hơn
+    res.status(400).json({ errors: error.message })
+  }
+}
+
+// HÀM MỚI
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params
+    const result = await userService.verifyEmail(token)
+    res.status(200).json(result)
+  } catch (error) {
+    // Nếu token sai, trả về lỗi 400
+    res.status(400).json({ errors: error.message })
+  }
+}
+
 export const userController = {
   register,
   login,
-  getUserProfile
+  verifyEmail,
+  getUserProfile,
+  forgotPassword,
+  resetPassword
 }

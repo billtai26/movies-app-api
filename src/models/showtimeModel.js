@@ -40,16 +40,12 @@ const getAll = async ({ status }) => {
 
 // Hàm này rất quan trọng: Cập nhật nhiều ghế cùng lúc (Atomic)
 const updateSeatsStatus = async (showtimeId, seatNumbers, newStatus, userId, heldUntil) => {
-  // Điều kiện để tìm đúng các ghế cần cập nhật
+  // Filter đơn giản hơn: chỉ cần tìm đúng document
   const filter = {
-    _id: new ObjectId(showtimeId),
-    'seats.seatNumber': { $in: seatNumbers },
-    'seats.status': 'available' // Chỉ được giữ ghế đang 'available'
+    _id: new ObjectId(showtimeId)
   }
 
-  // updateMany không trả về document, chúng ta cần kiểm tra matchedCount
-  // Lưu ý: 'seats.$' chỉ cập nhật phần tử ĐẦU TIÊN khớp.
-  // Để cập nhật nhiều ghế, cần dùng arrayFilters.
+  // Dữ liệu sẽ được cập nhật
   const arrayFilterUpdate = {
     $set: {
       'seats.$[elem].status': newStatus,
@@ -57,18 +53,51 @@ const updateSeatsStatus = async (showtimeId, seatNumbers, newStatus, userId, hel
       'seats.$[elem].heldUntil': heldUntil
     }
   }
+
+  // TÙY CHỌN QUAN TRỌNG NHẤT: Thêm điều kiện status vào arrayFilters
   const options = {
-    arrayFilters: [{ 'elem.seatNumber': { $in: seatNumbers } }]
+    arrayFilters: [
+      {
+        'elem.seatNumber': { $in: seatNumbers },
+        'elem.status': 'available' // <-- ĐÂY LÀ SỬA ĐỔI CỐT LÕI
+      }
+    ]
   }
 
   const result = await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateOne(filter, arrayFilterUpdate, options)
   return result
 }
 
+// Trong showtimeModel
+const rollbackSeatHold = async (showtimeId, seatNumbers, userId) => {
+  const filter = {
+    _id: new ObjectId(showtimeId)
+  }
+
+  const update = {
+    $set: {
+      'seats.$[elem].status': 'available',
+      'seats.$[elem].heldBy': null,
+      'seats.$[elem].heldUntil': null
+    }
+  }
+
+  const options = {
+    arrayFilters: [
+      {
+        'elem.seatNumber': { $in: seatNumbers },
+        'elem.heldBy': userId
+      }
+    ]
+  }
+
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateOne(filter, update, options)
+}
 
 export const showtimeModel = {
   createNew,
   findOneById,
   getAll,
-  updateSeatsStatus
+  updateSeatsStatus,
+  rollbackSeatHold
 }
