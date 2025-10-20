@@ -5,6 +5,7 @@ import exitHook from 'async-exit-hook'
 import { CONNECT_DB, CLOSE_DB } from '~/config/mongodb'
 import { env } from '~/config/environment'
 import { APIs_V1 } from '~/routes/v1' // Import router V1
+import { startReleaseSeatsJob } from '~/jobs/releaseExpiredSeats'
 
 const START_SERVER = () => {
   const app = express()
@@ -17,6 +18,9 @@ const START_SERVER = () => {
 
   // Sử dụng Routers
   app.use('/v1', APIs_V1)
+
+  // Bắt đầu chạy job tự động hủy ghế
+  startReleaseSeatsJob()
 
   app.listen(env.LOCAL_DEV_APP_PORT, env.LOCAL_DEV_APP_HOST, () => {
     console.log(`3. Hi ${env.AUTHOR}, Back-end Server is running successfully at Host: ${env.LOCAL_DEV_APP_HOST} and Port: ${env.LOCAL_DEV_APP_PORT}`)
