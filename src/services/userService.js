@@ -3,6 +3,7 @@ import { userModel } from '~/models/userModel'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { env } from '~/config/environment'
+import { mailService } from '~/utils/mailService'
 import crypto from 'crypto'
 
 // SỬA LẠI HÀM REGISTER
@@ -31,11 +32,21 @@ const register = async (reqBody) => {
     emailVerificationExpire: expireDate
   })
 
-  // Mô phỏng gửi email
+  // Tạo đường link xác thực
   const verificationUrl = `http://localhost:8017/v1/users/verify-email/${verificationToken}`
-  console.log('!!! SIMULATING EMAIL VERIFICATION !!!')
-  console.log(`Verification URL: ${verificationUrl}`)
-  console.log('!!! END SIMULATION !!!')
+
+  // Tạo nội dung email HTML
+  const emailHtml = `
+    <div>
+      <h1>Chào mừng bạn đến với Movies Website!</h1>
+      <p>Vui lòng nhấp vào liên kết bên dưới để kích hoạt tài khoản của bạn:</p>
+      <a href="${verificationUrl}" target="_blank">Xác thực tài khoản</a>
+      <p>Lưu ý: Liên kết này sẽ hết hạn sau 24 giờ.</p>
+    </div>
+  `
+
+  // Gọi service để gửi email
+  await mailService.sendEmail(createdUser.email, 'Xác thực tài khoản Movies App', emailHtml)
 
   // Trả về thông báo, không trả về thông tin user nữa
   return { message: 'Registration successful. Please check your email to verify your account.' }

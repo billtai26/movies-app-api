@@ -9,5 +9,9 @@ export const env = {
 
   JWT_SECRET: process.env.JWT_SECRET,
 
-  AUTHOR: process.env.AUTHOR
+  AUTHOR: process.env.AUTHOR,
+
+  // Thêm 2 dòng này
+  MAIL_USER: process.env.MAIL_USER,
+  MAIL_PASSWORD: process.env.MAIL_PASSWORD
 }
