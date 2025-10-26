@@ -11,9 +11,16 @@ const createNew = async (reqBody) => {
   return await movieModel.findOneById(createdMovie.insertedId)
 }
 
+// CẬP NHẬT HÀM NÀY
 const getMovies = async (queryParams) => {
-  // queryParams sẽ chứa các bộ lọc, ví dụ: { status: 'now_showing' }
-  return await movieModel.getAll(queryParams)
+  try {
+    // Trích xuất cả status và q từ queryParams
+    const { status, q } = queryParams
+
+    // Truyền cả hai tham số xuống model
+    return await movieModel.getAll({ status, q })
+
+  } catch (error) { throw new Error(error) }
 }
 
 const getMovieDetails = async (movieId) => {
