@@ -13,5 +13,8 @@ export const env = {
 
   // Thêm 2 dòng này
   MAIL_USER: process.env.MAIL_USER,
-  MAIL_PASSWORD: process.env.MAIL_PASSWORD
+  MAIL_PASSWORD: process.env.MAIL_PASSWORD,
+
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET
 }

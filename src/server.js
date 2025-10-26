@@ -6,6 +6,8 @@ import { CONNECT_DB, CLOSE_DB } from '~/config/mongodb'
 import { env } from '~/config/environment'
 import { APIs_V1 } from '~/routes/v1' // Import router V1
 import { startReleaseSeatsJob } from '~/jobs/releaseExpiredSeats'
+import passport from 'passport'
+import { configurePassport } from '~/config/passport'
 
 const START_SERVER = () => {
   const app = express()
@@ -15,6 +17,10 @@ const START_SERVER = () => {
 
   // Kích hoạt express.json() middleware
   app.use(express.json())
+
+  // Khởi tạo Passport
+  app.use(passport.initialize())
+  configurePassport() // Gọi hàm config
 
   // Sử dụng Routers
   app.use('/v1', APIs_V1)
