@@ -2,6 +2,9 @@ import express from 'express'
 import { userValidation } from '~/validations/userValidation'
 import { userController } from '~/controllers/userController'
 import { protect } from '~/middlewares/authMiddleware'
+import passport from 'passport'
+import jwt from 'jsonwebtoken'
+import { env } from '~/config/environment'
 
 const Router = express.Router()
 
@@ -25,5 +28,38 @@ Router.route('/forgot-password')
 // ROUTE MỚI
 Router.route('/reset-password/:resetToken')
   .put(userValidation.resetPassword, userController.resetPassword) // Dùng PUT vì ta đang cập nhật resource
+
+
+// ROUTE BẮT ĐẦU QUÁ TRÌNH OAUTH
+Router.route('/auth/google')
+  .get(passport.authenticate('google', {
+    scope: ['profile', 'email'], // Yêu cầu lấy thông tin profile và email
+    session: false
+  }))
+
+// ROUTE CALLBACK KHI GOOGLE TRẢ VỀ
+Router.route('/auth/google/callback')
+  .get(
+    passport.authenticate('google', { session: false, failureRedirect: '/login-failed' }),
+    (req, res) => {
+      // Hàm này chỉ chạy khi passport xác thực thành công
+      // req.user đã được gán bởi passport
+
+      // 1. Tạo JWT token giống như khi login
+      const token = jwt.sign(
+        { userId: req.user._id },
+        env.JWT_SECRET,
+        { expiresIn: '1d' }
+      )
+
+      // 2. Trả về token cho client
+      // (Trong thực tế, bạn sẽ redirect về frontend với token)
+      res.status(200).json({
+        message: 'Google login successful',
+        token: token,
+        user: req.user
+      })
+    }
+  )
 
 export const userRoute = Router
