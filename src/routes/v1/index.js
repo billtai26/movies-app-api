@@ -5,6 +5,7 @@ import { showtimeRoute } from '~/routes/v1/showtimeRoute'
 import { comboRoute } from '~/routes/v1/comboRoute'
 import { paymentRoute } from './paymentRoute'
 import { qrRoute } from './qrRoute'
+import { bookingRoute } from './bookingRoute'
 
 const Router = express.Router()
 
@@ -15,5 +16,6 @@ Router.use('/showtimes', showtimeRoute)
 Router.use('/combos', comboRoute)
 Router.use('/payments', paymentRoute)
 Router.use('/qr', qrRoute)
+Router.use('/bookings', bookingRoute)
 
 export const APIs_V1 = Router
