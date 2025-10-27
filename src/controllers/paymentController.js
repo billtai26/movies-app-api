@@ -75,7 +75,7 @@ export const paymentController = {
         }
       })
     } catch (error) {
-      console.error('Error initializing MoMo payment:', error)
+      // console.error('Error initializing MoMo payment:', error)
       return res.status(500).json({
         success: false,
         message: 'Failed to initialize payment',
@@ -116,7 +116,7 @@ export const paymentController = {
         extraData: req.body.extraData || ''
       })
     } catch (error) {
-      console.error('Error handling MoMo payment callback:', error)
+      // console.error('Error handling MoMo payment callback:', error)
       return res.status(500).json({
         success: false,
         message: 'Failed to process payment callback',

@@ -89,6 +89,7 @@ class MomoService {
 
   async verifySignature(response) {
     const {
+      // eslint-disable-next-line no-unused-vars
       accessKey,
       amount,
       extraData,
