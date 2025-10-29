@@ -1,26 +1,24 @@
-import QRService from '~/services/qrService'
+import QRService from '~/services/qrService' // Đảm bảo đường dẫn đúng
 import { bookingModel } from '~/models/bookingModel'
 import { ObjectId } from 'mongodb'
+import { env } from '~/config/environment' // Import env để lấy APP_URL
 
 export const qrController = {
   generateTicketQR: async (req, res, next) => {
     try {
       const { bookingId } = req.params
 
-      // --- THÊM BƯỚC KIỂM TRA ĐỊNH DẠNG ID ---
+      // --- Kiểm tra định dạng ID (Đã có) ---
       if (!ObjectId.isValid(bookingId)) {
         return res.status(400).json({
           success: false,
           message: 'Invalid Booking ID format. Must be a 24 character hex string.'
         })
       }
-      // Validate bookingId
-      if (!bookingId) {
-        return res.status(400).json({
-          success: false,
-          message: 'Booking ID is required'
-        })
-      }
+      // ------------------------------------
+
+      // Validate bookingId exists (đã có)
+      // if (!bookingId) { ... } // Không cần nữa vì đã có trong params
 
       // Fetch booking details
       const booking = await bookingModel.findOneById(bookingId)
@@ -31,31 +29,36 @@ export const qrController = {
         })
       }
 
-      // Generate QR code data
-      const qrData = {
-        bookingId: booking._id,
-        userId: booking.userId,
-        showtimeId: booking.showtimeId,
-        seats: booking.seats,
-        totalAmount: booking.totalAmount
+      // --- THÊM: Kiểm tra các điều kiện để xuất hóa đơn ---
+      // Ví dụ: Chỉ cho phép tạo QR/hóa đơn cho vé đã thanh toán
+      if (booking.paymentStatus !== 'completed') {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot generate invoice QR for pending or failed booking.'
+        })
       }
+      // (Bạn có thể thêm kiểm tra isUsed nếu cần)
+      //-----------------------------------------------------
 
-      // Convert QR data to string
-      const qrString = JSON.stringify(qrData)
 
-      // Generate QR code
-      const qrCode = await QRService.generateQRCode(qrString)
+      // --- THAY ĐỔI CHÍNH: Tạo URL thay vì JSON ---
+      // Tạo một URL trỏ đến API sẽ tạo PDF sau này
+      // Ví dụ: http://localhost:8017/v1/bookings/6789abc.../invoice-pdf
+      const invoiceUrl = `${env.APP_URL}/v1/bookings/${bookingId}/invoice-pdf`
+
+      // Generate QR code chứa URL này
+      const qrCodeDataURL = await QRService.generateQRCode(invoiceUrl) // Đổi tên biến cho rõ
+      // ------------------------------------------
 
       return res.status(200).json({
         success: true,
         data: {
-          qrCode,
-          bookingId: booking._id
+          qrCode: qrCodeDataURL, // Trả về QR code dạng data URL
+          bookingId: booking._id,
+          invoiceUrl: invoiceUrl // (Tùy chọn) Trả về cả URL để debug
         }
       })
     } catch (error) {
-      // console.error('Error generating QR code:', error)
-      // Chuyển lỗi cho middleware xử lý lỗi tập trung thay vì trả về 500 trực tiếp
       next(error)
     }
   }
