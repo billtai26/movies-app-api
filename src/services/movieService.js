@@ -14,11 +14,12 @@ const createNew = async (reqBody) => {
 // CẬP NHẬT HÀM NÀY
 const getMovies = async (queryParams) => {
   try {
-    // Trích xuất cả status và q từ queryParams
-    const { status, q } = queryParams
+    // Trích xuất các tham số từ queryParams (bao gồm cả 'genre')
+    const { status, q, genre } = queryParams
 
-    // Truyền cả hai tham số xuống model
-    return await movieModel.getAll({ status, q })
+    // Truyền tất cả các tham số xuống model
+    // Express tự động xử lý ?genre=Action&genre=Drama thành mảng ['Action', 'Drama']
+    return await movieModel.getAll({ status, q, genre })
 
   } catch (error) { throw new Error(error) }
 }
