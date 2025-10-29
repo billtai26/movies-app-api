@@ -16,5 +16,6 @@ export const env = {
   MAIL_PASSWORD: process.env.MAIL_PASSWORD,
 
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  APP_URL: process.env.APP_URL // Thêm biến APP_URL
 }
