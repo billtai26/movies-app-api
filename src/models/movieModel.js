@@ -29,27 +29,38 @@ const findOneById = async (id) => {
   return await GET_DB().collection(MOVIE_COLLECTION_NAME).findOne({ _id: new ObjectId(id) })
 }
 
-const getAll = async ({ status, q }) => {
+// CẬP NHẬT HÀM NÀY
+const getAll = async ({ status, q, genre }) => { // Thêm 'genre' vào tham số
   try {
     let query = { _destroy: false }
+
+    // Lọc theo status (đã có)
     if (status) {
       query.status = status
     }
 
-    // Nếu có tham số 'q' (query string)
+    // Tìm kiếm theo tên (đã có)
     if (q) {
-    // Thêm điều kiện tìm kiếm vào object query
-    // $regex: Tìm tất cả các phim có 'title' chứa chuỗi 'q'
-    // $options: 'i': Không phân biệt chữ hoa/thường (case-insensitive)
+      // Dùng $regex hoặc $text tùy bạn chọn
       query.title = { $regex: new RegExp(q, 'i') }
+      // Hoặc: query.$text = { $search: q } (nếu dùng Text Index)
     }
 
-    // Câu lệnh find bây giờ sẽ bao gồm cả điều kiện lọc VÀ điều kiện tìm kiếm
+    // --- THÊM LOGIC LỌC THEO THỂ LOẠI ---
+    if (genre) {
+      // Nếu 'genre' là một chuỗi đơn (vd: "Action"), chuyển nó thành mảng một phần tử
+      // Nếu 'genre' đã là mảng (vd: ["Action", "Drama"]), giữ nguyên
+      const genresToFilter = Array.isArray(genre) ? genre : [genre]
+
+      // Thêm điều kiện: trường 'genres' phải chứa ÍT NHẤT MỘT thể loại trong genresToFilter
+      query.genres = { $in: genresToFilter }
+    }
+    // ------------------------------------
+
+    // Tìm kiếm với tất cả điều kiện
     return await GET_DB().collection(MOVIE_COLLECTION_NAME).find(query).toArray()
 
-  } catch (error) {
-    throw new Error(error)
-  }
+  } catch (error) { throw new Error(error) }
 }
 
 export const movieModel = {
