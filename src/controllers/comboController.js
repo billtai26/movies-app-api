@@ -11,7 +11,7 @@ const createNew = async (req, res, next) => {
 
 const getAllCombos = async (req, res, next) => {
   try {
-    const combos = await comboService.getAllCombos()
+    const combos = await comboService.getAllCombos(req.query)
     res.status(200).json(combos)
   } catch (error) {
     next(error)

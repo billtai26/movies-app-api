@@ -5,9 +5,9 @@ const createNew = async (reqBody) => {
   return await comboModel.findOneById(createdCombo.insertedId)
 }
 
-const getAllCombos = async () => {
+const getAllCombos = async (q) => {
   // Lấy tất cả combo đang bán
-  return await comboModel.getAllAvailable()
+  return await comboModel.getAllAvailable(q)
 }
 
 const getComboDetails = async (comboId) => {
