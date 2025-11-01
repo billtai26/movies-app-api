@@ -29,7 +29,7 @@ const findOneById = async (id) => {
 /**
  * Lấy tất cả combo đang 'active' cho người dùng xem
  */
-const getAllAvailable = async ({ q }) => {
+const getAllAvailable = async ({ q, page = 1, limit = 10 }) => {
   let query = {
     _destroy: false,
     status: 'active'
@@ -43,13 +43,39 @@ const getAllAvailable = async ({ q }) => {
     ]
   }
 
-  return await GET_DB().collection(COMBO_COLLECTION_NAME).find(query, {
-    projection: {
-      name: 1,
-      description: 1,
-      price: 1
+  // Convert string to number
+  const pageNumber = parseInt(page)
+  const limitNumber = parseInt(limit)
+
+  // Calculate skip value
+  const skip = (pageNumber - 1) * limitNumber
+
+  // Get total count for pagination
+  const total = await GET_DB().collection(COMBO_COLLECTION_NAME).countDocuments(query)
+
+  // Get paginated data
+  const combos = await GET_DB().collection(COMBO_COLLECTION_NAME)
+    .find(query, {
+      projection: {
+        name: 1,
+        description: 1,
+        price: 1
+      }
+    })
+    .skip(skip)
+    .limit(limitNumber)
+    .toArray()
+
+  // Return pagination info along with data
+  return {
+    combos,
+    pagination: {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber)
     }
-  }).toArray()
+  }
 }
 
 const update = async (id, data) => {
