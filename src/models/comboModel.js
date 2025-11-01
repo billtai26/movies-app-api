@@ -33,6 +33,12 @@ const getAllAvailable = async () => {
   return await GET_DB().collection(COMBO_COLLECTION_NAME).find({
     _destroy: false,
     status: 'active'
+  }, {
+    projection: {
+      name: 1,
+      description: 1,
+      price: 1
+    }
   }).toArray()
 }
 
