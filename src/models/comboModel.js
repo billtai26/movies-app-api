@@ -29,11 +29,21 @@ const findOneById = async (id) => {
 /**
  * Lấy tất cả combo đang 'active' cho người dùng xem
  */
-const getAllAvailable = async () => {
-  return await GET_DB().collection(COMBO_COLLECTION_NAME).find({
+const getAllAvailable = async ({ q }) => {
+  let query = {
     _destroy: false,
     status: 'active'
-  }, {
+  }
+
+  // Thêm điều kiện tìm kiếm nếu có từ khóa
+  if (q) {
+    query.$or = [
+      { name: { $regex: new RegExp(q, 'i') } },
+      { description: { $regex: new RegExp(q, 'i') } }
+    ]
+  }
+
+  return await GET_DB().collection(COMBO_COLLECTION_NAME).find(query, {
     projection: {
       name: 1,
       description: 1,
