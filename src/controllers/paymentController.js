@@ -3,6 +3,11 @@ import { bookingModel } from '~/models/bookingModel'
 import { userModel } from '~/models/userModel' // <-- IMPORT userModel
 import { voucherService } from '~/services/voucherService' // <-- IMPORT voucherService
 import { voucherModel } from '~/models/voucherModel' // <-- IMPORT voucherModel
+// --- THÊM CÁC IMPORT CẦN THIẾT ---
+import { notificationService } from '~/services/notificationService'
+import { movieModel } from '~/models/movieModel' // Để lấy tên phim
+import { env } from '~/config/environment' // Để lấy URL frontend
+// ------------------------------------
 
 export const paymentController = {
   initializePayment: async (req, res) => {
@@ -138,12 +143,14 @@ export const paymentController = {
 
   handlePaymentCallback: async (req, res) => {
     try {
+      // 1. Xác thực và xử lý kết quả từ MoMo
       const paymentResult = await MomoService.handlePaymentCallback(req.body)
 
       // Assuming we can extract bookingId from orderInfo
       // You might want to store this mapping when creating the payment
       // Try to extract bookingId from orderInfo using the format we set when creating the payment:
       // orderInfo = `Booking_${newBooking.insertedId}_MovieTickets`
+      // 2. Trích xuất bookingId từ orderInfo
       let bookingId = null
       if (paymentResult && paymentResult.orderInfo) {
         const parts = paymentResult.orderInfo.split('_')
@@ -154,11 +161,33 @@ export const paymentController = {
       let invoice = null
       if (bookingId) {
         const paymentStatus = paymentResult.success ? 'completed' : 'failed'
-        await bookingModel.updatePaymentStatus(
+        // 3. Cập nhật trạng thái thanh toán
+        const updatedBooking = await bookingModel.updatePaymentStatus(
           bookingId,
           paymentStatus,
           paymentResult.transactionId
         )
+
+
+        // --- 4. GỌI NOTIFICATION SERVICE (NẾU THÀNH CÔNG) ---
+        if (paymentStatus === 'completed' && updatedBooking) {
+          // Lấy thêm thông tin (tên phim) để gửi thông báo
+          const movie = await movieModel.findOneById(updatedBooking.movieId)
+
+          // (Giả sử bạn có env.APP_URL_FRONTEND)
+          const frontendBookingUrl = `${env.APP_URL_FRONTEND || 'http://your-frontend-url.com'}/my-tickets/${bookingId}`
+
+          // Gửi thông báo (real-time + email)
+          await notificationService.createNotification(
+            updatedBooking.userId.toString(), // userId
+            'ticket', // type
+            'Mua vé thành công!', // title
+            `Vé của bạn cho phim "${movie ? movie.title : 'Phim'}" đã được xác nhận.`, // message
+            frontendBookingUrl, // link
+            true // sendEmail = true
+          )
+        }
+        // --------------------------------------------------
 
         // Fetch the booking to return as an invoice
         const booking = await bookingModel.findOneById(bookingId)
@@ -174,22 +203,23 @@ export const paymentController = {
         }
         // ---------------------------------
 
-        if (booking) {
+        // 5. Tạo hóa đơn (invoice) từ updatedBooking
+        if (updatedBooking) {
           invoice = {
-            bookingId: booking._id,
-            userId: booking.userId,
-            showtimeId: booking.showtimeId,
-            movieId: booking.movieId,
-            seats: booking.seats,
-            combos: booking.combos || [],
-            totalAmount: booking.totalAmount,
-            paymentStatus: booking.paymentStatus || paymentStatus,
-            createdAt: booking.createdAt
+            bookingId: updatedBooking._id,
+            userId: updatedBooking.userId,
+            showtimeId: updatedBooking.showtimeId,
+            movieId: updatedBooking.movieId,
+            seats: updatedBooking.seats,
+            combos: updatedBooking.combos || [],
+            totalAmount: updatedBooking.totalAmount,
+            paymentStatus: updatedBooking.paymentStatus,
+            createdAt: updatedBooking.createdAt
           }
         }
       }
 
-      // Return MoMo's expected response format plus the invoice when available
+      // 6. Trả về phản hồi cho MoMo
       return res.status(200).json({
         partnerCode: req.body.partnerCode,
         orderId: req.body.orderId,
@@ -202,7 +232,7 @@ export const paymentController = {
         message: paymentResult.message,
         responseTime: Date.now(),
         extraData: req.body.extraData || '',
-        invoice // may be null if not found
+        invoice
       })
     } catch (error) {
       // console.error('Error handling MoMo payment callback:', error)
