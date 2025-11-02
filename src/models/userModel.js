@@ -22,6 +22,8 @@ const USER_COLLECTION_SCHEMA = Joi.object({
   resetPasswordToken: Joi.string().default(null),
   resetPasswordExpire: Joi.date().default(null),
 
+  loyaltyPoints: Joi.number().integer().min(0).default(0),
+
   createdAt: Joi.date().timestamp('javascript').default(Date.now),
   updatedAt: Joi.date().timestamp('javascript').default(null),
   _destroy: Joi.boolean().default(false)
@@ -188,6 +190,17 @@ const getAllUsers = async ({ q, role, page = 1, limit = 10 } = {}) => {
   } catch (error) { throw new Error(error) }
 }
 
+// HÀM MỚI: Dùng để cộng hoặc trừ điểm (atomic)
+const addLoyaltyPoints = async (userId, points) => {
+  try {
+    return await GET_DB().collection(USER_COLLECTION_NAME).findOneAndUpdate(
+      { _id: new ObjectId(userId) },
+      { $inc: { loyaltyPoints: points } }, // $inc dùng để cộng/trừ
+      { returnDocument: 'after' }
+    )
+  } catch (error) { throw new Error(error) }
+}
+
 export const userModel = {
   USER_COLLECTION_NAME,
   USER_COLLECTION_SCHEMA,
@@ -200,5 +213,6 @@ export const userModel = {
   getEmailVerificationToken,
   findOneByValidVerificationToken,
   deleteOneById,
-  getAllUsers
+  getAllUsers,
+  addLoyaltyPoints
 }
