@@ -1,5 +1,8 @@
 import MomoService from '~/services/momoService'
 import { bookingModel } from '~/models/bookingModel'
+import { userModel } from '~/models/userModel' // <-- IMPORT userModel
+import { voucherService } from '~/services/voucherService' // <-- IMPORT voucherService
+import { voucherModel } from '~/models/voucherModel' // <-- IMPORT voucherModel
 
 export const paymentController = {
   initializePayment: async (req, res) => {
@@ -9,7 +12,9 @@ export const paymentController = {
         movieId,
         seats,
         combos = [],
-        amount
+        amount, // Đây là giá GỐC (trước khi giảm)
+        pointsToSpend = 0, // User muốn tiêu (mặc định là 0)
+        voucherCode = null // User muốn dùng (mặc định là null)
       } = req.body
 
       // Validate required fields
@@ -36,6 +41,36 @@ export const paymentController = {
         })
       }
 
+      // --- LOGIC TÍNH TOÁN GIẢM GIÁ ---
+      let originalAmount = amount
+      let finalAmount = originalAmount
+      let discountAmount = 0
+      let pointsDiscount = 0
+      let appliedVoucher = null
+
+      // 1. Áp dụng Voucher (nếu có)
+      if (voucherCode) {
+        const voucherResult = await voucherService.applyVoucher(voucherCode, finalAmount)
+        if (voucherResult.error) {
+          return res.status(400).json({ success: false, message: voucherResult.error })
+        }
+        finalAmount = voucherResult.finalAmount
+        discountAmount = voucherResult.discount
+        appliedVoucher = voucherResult.voucher
+      }
+
+      // 2. Áp dụng Điểm (nếu có)
+      if (pointsToSpend > 0) {
+        const user = await userModel.findOneById(userId)
+        if (pointsToSpend > user.loyaltyPoints) {
+          return res.status(400).json({ success: false, message: 'Not enough loyalty points.' })
+        }
+        // Giả sử 1 điểm = 1 VND
+        pointsDiscount = Math.min(finalAmount, pointsToSpend) // Không cho giảm quá số tiền còn lại
+        finalAmount = Math.max(0, finalAmount - pointsDiscount)
+      }
+      // --- KẾT THÚC TÍNH TOÁN ---
+
       // Create new booking
       const bookingData = {
         userId: userIdString,
@@ -43,21 +78,26 @@ export const paymentController = {
         movieId,
         seats,
         combos,
-        totalAmount: amount,
+        originalAmount: originalAmount, // <-- LƯU GIÁ GỐC
+        totalAmount: finalAmount, // <-- LƯU GIÁ CUỐI CÙNG
+        discountAmount: discountAmount, // <-- LƯU GIẢM GIÁ
+        pointsSpent: pointsDiscount, // <-- LƯU ĐIỂM ĐÃ TIÊU
+        voucherCode: voucherCode, // <-- LƯU MÃ VOUCHER
         paymentMethod: 'momo',
         paymentStatus: 'pending',
         bookingStatus: 'active'
       }
 
       const newBooking = await bookingModel.createNew(bookingData)
+      const bookingId = newBooking.insertedId
 
       // Create payment with MoMo
-      const orderInfo = `Booking_${newBooking.insertedId}_MovieTickets`
-      const paymentResponse = await MomoService.createPayment(amount, orderInfo)
+      const orderInfo = `Booking_${bookingId}_MovieTickets`
+      const paymentResponse = await MomoService.createPayment(finalAmount, orderInfo)
 
       if (paymentResponse.resultCode !== 0) {
         // If MoMo payment initialization fails, cancel the booking
-        await bookingModel.cancelBooking(newBooking.insertedId)
+        await bookingModel.cancelBooking(bookingId) // Hủy booking nếu MoMo lỗi
         return res.status(400).json({
           success: false,
           message: 'Failed to initialize MoMo payment',
@@ -65,12 +105,24 @@ export const paymentController = {
         })
       }
 
+      // --- TRỪ ĐIỂM VÀ TĂNG LƯỢT DÙNG VOUCHER ---
+      // Chỉ thực hiện sau khi tạo đơn hàng thành công
+      if (pointsDiscount > 0) {
+        await userModel.addLoyaltyPoints(userId, -pointsDiscount) // Trừ điểm
+      }
+      if (appliedVoucher) {
+        await voucherModel.incrementUsage(appliedVoucher._id) // Tăng lượt dùng voucher
+      }
+      // ----------------------------------------
+
       return res.status(200).json({
         success: true,
         data: {
           bookingId: newBooking.insertedId,
           paymentUrl: paymentResponse.payUrl,
-          amount: amount,
+          amount: finalAmount, // Trả về số tiền cần thanh toán
+          originalAmount: originalAmount,
+          discount: discountAmount + pointsDiscount,
           orderInfo: orderInfo
         }
       })
@@ -110,6 +162,18 @@ export const paymentController = {
 
         // Fetch the booking to return as an invoice
         const booking = await bookingModel.findOneById(bookingId)
+
+        // --- LOGIC CỘNG ĐIỂM TÍCH LŨY ---
+        // Chỉ cộng điểm khi thanh toán thành công
+        if (paymentResult.success && booking) {
+          // Quy tắc: 10% số tiền thực trả (totalAmount)
+          const pointsEarned = Math.floor(booking.totalAmount * 0.1)
+          if (pointsEarned > 0) {
+            await userModel.addLoyaltyPoints(booking.userId, pointsEarned)
+          }
+        }
+        // ---------------------------------
+
         if (booking) {
           invoice = {
             bookingId: booking._id,

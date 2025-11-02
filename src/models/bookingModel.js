@@ -17,6 +17,14 @@ const BOOKING_COLLECTION_SCHEMA = Joi.object({
     })
   ).required(),
   totalAmount: Joi.number().required(),
+
+  // --- THÊM CÁC TRƯỜNG MỚI ---
+  originalAmount: Joi.number().required(), // Tổng tiền GỐC (trước khi giảm)
+  discountAmount: Joi.number().default(0), // Số tiền được giảm
+  pointsSpent: Joi.number().integer().default(0), // Số điểm đã dùng
+  voucherCode: Joi.string().allow(null, ''), // Mã voucher đã dùng
+  // -------------------------
+
   paymentStatus: Joi.string().valid('pending', 'completed', 'failed').default('pending'),
   paymentMethod: Joi.string().valid('momo', 'cash').required(),
   transactionId: Joi.string().allow(null, ''),
