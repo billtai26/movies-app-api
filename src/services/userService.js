@@ -56,7 +56,9 @@ const register = async (reqBody) => {
 const login = async (reqBody) => {
   const { email, password } = reqBody
   const user = await userModel.findOneByEmail(email)
-  if (!user) {
+
+  // Nếu user không tồn tại, HOẶC user đã bị xóa mềm
+  if (!user || user._destroy === true) {
     throw new Error('Invalid email or password')
   }
 
@@ -164,11 +166,35 @@ const resetPassword = async (resetToken, newPassword) => {
   return { message: 'Password reset successful' }
 }
 
+// HÀM MỚI
+const updateProfile = async (userId, updateData) => {
+  // Hàm update trong model đã xử lý việc lọc các trường không hợp lệ
+  // nên chúng ta có thể truyền thẳng updateData
+  const updatedUser = await userModel.update(userId, updateData)
+  delete updatedUser.password // Xóa password trước khi trả về
+  return updatedUser
+}
+
+const deleteProfile = async (userId) => {
+  await userModel.deleteOneById(userId)
+  return { message: 'Account deleted successfully' }
+}
+
+// HÀM MỚI
+const getAllUsers = async (queryParams) => {
+  // queryParams sẽ là req.query từ controller (chứa q, role, page, limit)
+  const allUsersData = await userModel.getAllUsers(queryParams)
+  return allUsersData
+}
+
 export const userService = {
   register,
   login,
   verifyEmail, // Thêm vào
   getUserProfile,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  updateProfile,
+  deleteProfile,
+  getAllUsers
 }

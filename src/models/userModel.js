@@ -11,7 +11,7 @@ const USER_COLLECTION_SCHEMA = Joi.object({
   email: Joi.string().required().email().trim().strict(),
   googleId: Joi.string().default(null),
   password: Joi.string().allow(null).default(null).min(6).trim().strict(),
-  role: Joi.string().valid('user', 'admin').default('admin'), //
+  role: Joi.string().valid('user', 'admin').default('user'), //
 
   // Thêm các trường cho xác thực email
   isVerified: Joi.boolean().default(false),
@@ -122,6 +122,72 @@ const findOneByValidVerificationToken = async (hashedToken) => {
   })
 }
 
+// HÀM MỚI
+const deleteOneById = async (id) => {
+  return await GET_DB().collection(USER_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true, updatedAt: new Date() } }
+  )
+}
+
+// HÀM MỚI: Lấy danh sách người dùng cho Admin
+const getAllUsers = async ({ q, role, page = 1, limit = 10 } = {}) => {
+  try {
+    let query = { _destroy: false } // Luôn lọc các user đã bị "xóa mềm"
+
+    // 1. Lọc theo vai trò (role)
+    if (role) {
+      query.role = role
+    }
+
+    // 2. Tìm kiếm (theo username hoặc email)
+    if (q) {
+      query.$or = [
+        { username: { $regex: new RegExp(q, 'i') } }, // 'i' = không phân biệt hoa thường
+        { email: { $regex: new RegExp(q, 'i') } }
+      ]
+    }
+
+    // 3. Phân trang
+    const pageNumber = Math.max(1, parseInt(page) || 1)
+    const limitNumber = Math.max(1, parseInt(limit) || 10)
+    const skip = (pageNumber - 1) * limitNumber
+
+    // 4. Lấy tổng số lượng (để tính totalPages)
+    const total = await GET_DB().collection(USER_COLLECTION_NAME).countDocuments(query)
+
+    // 5. Định nghĩa các trường cần loại bỏ
+    const projection = {
+      password: 0,
+      resetPasswordToken: 0,
+      resetPasswordExpire: 0,
+      emailVerificationToken: 0,
+      emailVerificationExpire: 0
+    }
+
+    // 6. Thực thi truy vấn
+    const users = await GET_DB().collection(USER_COLLECTION_NAME)
+      .find(query)
+      .project(projection) // Áp dụng projection để che thông tin nhạy cảm
+      .sort({ createdAt: -1 }) // Sắp xếp mới nhất lên đầu
+      .skip(skip)
+      .limit(limitNumber)
+      .toArray()
+
+    // 7. Trả về kết quả
+    return {
+      users,
+      pagination: {
+        page: pageNumber,
+        limit: limitNumber,
+        total,
+        totalPages: Math.ceil(total / limitNumber)
+      }
+    }
+
+  } catch (error) { throw new Error(error) }
+}
+
 export const userModel = {
   USER_COLLECTION_NAME,
   USER_COLLECTION_SCHEMA,
@@ -132,5 +198,7 @@ export const userModel = {
   getResetPasswordToken,
   findOneByValidResetToken,
   getEmailVerificationToken,
-  findOneByValidVerificationToken
+  findOneByValidVerificationToken,
+  deleteOneById,
+  getAllUsers
 }

@@ -66,11 +66,47 @@ const verifyEmail = async (req, res, next) => {
   }
 }
 
+// HÀM MỚI
+const updateProfile = async (req, res, next) => {
+  try {
+    const userId = req.user._id // Lấy từ middleware 'protect'
+    const updateData = req.body // Dữ liệu đã được lọc bởi validation
+
+    const updatedUser = await userService.updateProfile(userId, updateData)
+    res.status(200).json(updatedUser)
+  } catch (error) {
+    next(error)
+  }
+}
+
+const deleteProfile = async (req, res, next) => {
+  try {
+    const userId = req.user._id
+    const result = await userService.deleteProfile(userId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// HÀM MỚI
+const getAllUsers = async (req, res, next) => {
+  try {
+    const allUsersData = await userService.getAllUsers(req.query)
+    res.status(200).json(allUsersData)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const userController = {
   register,
   login,
   verifyEmail,
   getUserProfile,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  updateProfile,
+  deleteProfile,
+  getAllUsers
 }
