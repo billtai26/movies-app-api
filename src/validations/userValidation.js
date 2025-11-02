@@ -55,9 +55,24 @@ const resetPassword = async (req, res, next) => {
   }
 }
 
+// HÀM MỚI
+const updateProfile = async (req, res, next) => {
+  const correctCondition = Joi.object({
+    username: Joi.string().min(3).max(50).trim().strict()
+    // Không cho phép sửa email, password, role... qua API này
+  })
+  try {
+    await correctCondition.validateAsync(req.body, { abortEarly: false })
+    next()
+  } catch (error) {
+    res.status(400).json({ errors: error.details.map(d => d.message) })
+  }
+}
+
 export const userValidation = {
   register,
   login,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  updateProfile
 }

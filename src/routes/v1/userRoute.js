@@ -2,11 +2,16 @@ import express from 'express'
 import { userValidation } from '~/validations/userValidation'
 import { userController } from '~/controllers/userController'
 import { protect } from '~/middlewares/authMiddleware'
+import { admin } from '~/middlewares/adminMiddleware'
 import passport from 'passport'
 import jwt from 'jsonwebtoken'
 import { env } from '~/config/environment'
 
 const Router = express.Router()
+
+// HÀM MỚI CHO ADMIN: LẤY DANH SÁCH USER (có lọc, tìm kiếm, phân trang)
+Router.route('/')
+  .get(protect, admin, userController.getAllUsers)
 
 Router.route('/register')
   .post(userValidation.register, userController.register)
@@ -20,6 +25,8 @@ Router.route('/verify-email/:token')
 
 Router.route('/profile')
   .get(protect, userController.getUserProfile)
+  .put(protect, userValidation.updateProfile, userController.updateProfile)
+  .delete(protect, userController.deleteProfile)
 
 // ROUTE MỚI
 Router.route('/forgot-password')
