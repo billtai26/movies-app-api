@@ -10,6 +10,7 @@ import { voucherRoute } from './voucherRoute'
 import { newsRoute } from './newsRoute'
 import { reviewRoute } from './reviewRoute'
 import { commentRoute } from './commentRoute'
+import { notificationRoute } from './notificationRoute'
 
 const Router = express.Router()
 
@@ -25,5 +26,6 @@ Router.use('/vouchers', voucherRoute)
 Router.use('/news', newsRoute)
 Router.use('/reviews', reviewRoute)
 Router.use('/comments', commentRoute)
+Router.use('/notifications', notificationRoute)
 
 export const APIs_V1 = Router
