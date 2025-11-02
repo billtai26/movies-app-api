@@ -15,6 +15,11 @@ const MOVIE_COLLECTION_SCHEMA = Joi.object({
   // Có thể thêm các trạng thái: 'now_showing', 'coming_soon'
   status: Joi.string().valid('now_showing', 'coming_soon').required(),
 
+  // --- THÊM CÁC TRƯỜNG ĐÁNH GIÁ ---
+  averageRating: Joi.number().default(0), // Điểm trung bình
+  reviewCount: Joi.number().integer().default(0), // Tổng số lượt đánh giá
+  // ---------------------------------
+
   createdAt: Joi.date().timestamp('javascript').default(Date.now),
   updatedAt: Joi.date().timestamp('javascript').default(null),
   _destroy: Joi.boolean().default(false)
@@ -63,8 +68,23 @@ const getAll = async ({ status, q, genre }) => { // Thêm 'genre' vào tham số
   } catch (error) { throw new Error(error) }
 }
 
+// HÀM MỚI: Cập nhật điểm trung bình cho phim
+const updateRating = async (id, averageRating, reviewCount) => {
+  return await GET_DB().collection(MOVIE_COLLECTION_NAME).findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    { $set: {
+      averageRating: Math.round(averageRating * 10) / 10, // Làm tròn 1 chữ số thập phân
+      reviewCount: reviewCount,
+      updatedAt: new Date()
+    }
+    },
+    { returnDocument: 'after' }
+  )
+}
+
 export const movieModel = {
   createNew,
   findOneById,
-  getAll
+  getAll,
+  updateRating
 }
