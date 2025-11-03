@@ -1,7 +1,7 @@
 import { showtimeModel } from '~/models/showtimeModel'
 
 const holdSeats = async (userId, showtimeId, seatNumbers) => {
-  const HOLD_DURATION_MINUTES = 1 // Thời gian giữ ghế
+  const HOLD_DURATION_MINUTES = 10 // Thời gian giữ ghế
   const heldUntil = new Date(Date.now() + HOLD_DURATION_MINUTES * 60 * 1000)
 
   // Kiểm tra tính available của tất cả ghế trước
