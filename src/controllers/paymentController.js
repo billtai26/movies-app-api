@@ -2,12 +2,11 @@ import MomoService from '~/services/momoService'
 import { bookingModel } from '~/models/bookingModel'
 import { userModel } from '~/models/userModel' // <-- IMPORT userModel
 import { voucherService } from '~/services/voucherService' // <-- IMPORT voucherService
-import { voucherModel } from '~/models/voucherModel' // <-- IMPORT voucherModel
-// --- THÊM CÁC IMPORT CẦN THIẾT ---
+import { voucherModel } from '~/models/voucherModel'
 import { notificationService } from '~/services/notificationService'
 import { movieModel } from '~/models/movieModel' // Để lấy tên phim
 import { env } from '~/config/environment' // Để lấy URL frontend
-// ------------------------------------
+import { showtimeModel } from '~/models/showtimeModel'
 
 export const paymentController = {
   initializePayment: async (req, res) => {
@@ -143,24 +142,20 @@ export const paymentController = {
 
   handlePaymentCallback: async (req, res) => {
     try {
-      // 1. Xác thực và xử lý kết quả từ MoMo
+      // 1. Xác thực MoMo
       const paymentResult = await MomoService.handlePaymentCallback(req.body)
 
-      // Assuming we can extract bookingId from orderInfo
-      // You might want to store this mapping when creating the payment
-      // Try to extract bookingId from orderInfo using the format we set when creating the payment:
-      // orderInfo = `Booking_${newBooking.insertedId}_MovieTickets`
-      // 2. Trích xuất bookingId từ orderInfo
+      // 2. Trích xuất bookingId
       let bookingId = null
       if (paymentResult && paymentResult.orderInfo) {
         const parts = paymentResult.orderInfo.split('_')
         if (parts.length >= 2) bookingId = parts[1]
       }
 
-      // Update booking payment status if we have a bookingId
       let invoice = null
       if (bookingId) {
         const paymentStatus = paymentResult.success ? 'completed' : 'failed'
+
         // 3. Cập nhật trạng thái thanh toán
         const updatedBooking = await bookingModel.updatePaymentStatus(
           bookingId,
@@ -168,43 +163,45 @@ export const paymentController = {
           paymentResult.transactionId
         )
 
-
-        // --- 4. GỌI NOTIFICATION SERVICE (NẾU THÀNH CÔNG) ---
+        // 4. CHỈ CHẠY LOGIC NẾU THANH TOÁN THÀNH CÔNG
         if (paymentStatus === 'completed' && updatedBooking) {
-          // Lấy thêm thông tin (tên phim) để gửi thông báo
-          const movie = await movieModel.findOneById(updatedBooking.movieId)
+          // --- 5. ĐOẠN CODE BỊ THIẾU CẦN THÊM VÀO ---
+          // Chuyển đổi định dạng ghế từ object (trong booking) sang string (trong showtime)
+          // Ví dụ: [{ row: 'B', number: 1 }] -> ['B1']
+          const seatNumbers = updatedBooking.seats.map(seat => `${seat.row}${seat.number}`)
 
-          // (Giả sử bạn có env.APP_URL_FRONTEND)
-          const frontendBookingUrl = `${env.APP_URL_FRONTEND || 'http://your-frontend-url.com'}/my-tickets/${bookingId}`
-
-          // Gửi thông báo (real-time + email)
-          await notificationService.createNotification(
-            updatedBooking.userId.toString(), // userId
-            'ticket', // type
-            'Mua vé thành công!', // title
-            `Vé của bạn cho phim "${movie ? movie.title : 'Phim'}" đã được xác nhận.`, // message
-            frontendBookingUrl, // link
-            true // sendEmail = true
+          // Cập nhật collection 'showtimes'
+          await showtimeModel.updateSeatsStatus(
+            updatedBooking.showtimeId,
+            seatNumbers, // Truyền mảng đã chuyển đổi
+            'booked',
+            null,
+            null
           )
-        }
-        // --------------------------------------------------
+          // -------------------------------------------
 
-        // Fetch the booking to return as an invoice
-        const booking = await bookingModel.findOneById(bookingId)
+          // 6. Gửi thông báo
+          const movie = await movieModel.findOneById(updatedBooking.movieId)
+          const frontendBookingUrl = `${env.APP_URL_FRONTEND || 'http://your-frontend-url.com'}/my-tickets/${bookingId}`
+          await notificationService.createNotification(
+            updatedBooking.userId.toString(),
+            'ticket',
+            'Mua vé thành công!',
+            `Vé của bạn cho phim "${movie ? movie.title : 'Phim'}" đã được xác nhận.`,
+            frontendBookingUrl,
+            true
+          )
 
-        // --- LOGIC CỘNG ĐIỂM TÍCH LŨY ---
-        // Chỉ cộng điểm khi thanh toán thành công
-        if (paymentResult.success && booking) {
-          // Quy tắc: 10% số tiền thực trả (totalAmount)
-          const pointsEarned = Math.floor(booking.totalAmount * 0.1)
-          if (pointsEarned > 0) {
-            await userModel.addLoyaltyPoints(booking.userId, pointsEarned)
+          // 7. Cộng điểm tích lũy
+          // (Lưu ý: bookingModel.updatePaymentStatus đã trả về updatedBooking, ta không cần gọi findOneById)
+          if (paymentResult.success && updatedBooking) {
+            const pointsEarned = Math.floor(updatedBooking.totalAmount * 0.1)
+            if (pointsEarned > 0) {
+              await userModel.addLoyaltyPoints(updatedBooking.userId, pointsEarned)
+            }
           }
-        }
-        // ---------------------------------
 
-        // 5. Tạo hóa đơn (invoice) từ updatedBooking
-        if (updatedBooking) {
+          // 8. Tạo hóa đơn
           invoice = {
             bookingId: updatedBooking._id,
             userId: updatedBooking.userId,
@@ -219,7 +216,7 @@ export const paymentController = {
         }
       }
 
-      // 6. Trả về phản hồi cho MoMo
+      // 9. Trả về phản hồi cho MoMo
       return res.status(200).json({
         partnerCode: req.body.partnerCode,
         orderId: req.body.orderId,
@@ -235,7 +232,6 @@ export const paymentController = {
         invoice
       })
     } catch (error) {
-      // console.error('Error handling MoMo payment callback:', error)
       return res.status(500).json({
         success: false,
         message: 'Failed to process payment callback',
