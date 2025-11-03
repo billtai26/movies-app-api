@@ -2,6 +2,8 @@ import { bookingModel } from '~/models/bookingModel'
 import PDFService from '~/services/pdfService'
 import { movieModel } from '~/models/movieModel'
 import { showtimeModel } from '~/models/showtimeModel'
+import { ObjectId } from 'mongodb'
+import { bookingService } from '~/services/bookingService'
 
 export const bookingController = {
   getBookingHistory: async (req, res) => {
@@ -126,6 +128,39 @@ export const bookingController = {
       // })
       // Chuyển lỗi cho middleware xử lý lỗi
       next(error)
+    }
+  },
+
+  // PUT /v1/bookings/:id/verify
+  verifyTicketAtCounter: async (req, res) => {
+    try {
+      const { id: bookingId } = req.params
+      if (!ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ errors: 'Invalid Booking ID' })
+      }
+
+      const verifiedBooking = await bookingService.verifyAndUseTicket(bookingId)
+      res.status(200).json(verifiedBooking)
+    } catch (error) {
+      res.status(400).json({ errors: error.message })
+    }
+  },
+
+  // PUT /v1/bookings/:id/cancel
+  cancelBooking: async (req, res) => {
+    try {
+      const userId = req.user._id // Lấy từ 'protect'
+      const { id: bookingId } = req.params
+
+      if (!ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ errors: 'Invalid Booking ID' })
+      }
+
+      const result = await bookingService.cancelBooking(userId, bookingId)
+      res.status(200).json(result)
+    } catch (error) {
+      // Trả về lỗi 400 (Bad Request) cho các lỗi nghiệp vụ
+      res.status(400).json({ errors: error.message })
     }
   }
 }

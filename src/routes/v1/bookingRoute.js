@@ -13,4 +13,7 @@ Router.route('/print/:bookingId').get(protect, bookingController.printTicket)
 // Generate invoice PDF
 Router.route('/:id/invoice-pdf').get(bookingController.generateInvoicePDF)
 
+Router.route('/:id/cancel')
+  .put(protect, bookingController.cancelBooking)
+
 export const bookingRoute = Router

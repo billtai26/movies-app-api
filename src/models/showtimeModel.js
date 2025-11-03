@@ -94,10 +94,37 @@ const rollbackSeatHold = async (showtimeId, seatNumbers, userId) => {
   return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateOne(filter, update, options)
 }
 
+// HÀM MỚI: Mở lại ghế đã đặt (khi hủy vé)
+const releaseBookedSeats = async (showtimeId, seatNumbers) => {
+  const filter = {
+    _id: new ObjectId(showtimeId)
+  }
+
+  const update = {
+    $set: {
+      'seats.$[elem].status': 'available', // Chuyển về 'available'
+      'seats.$[elem].heldBy': null,
+      'seats.$[elem].heldUntil': null
+    }
+  }
+
+  const options = {
+    arrayFilters: [
+      {
+        'elem.seatNumber': { $in: seatNumbers },
+        'elem.status': 'booked' // Chỉ mở lại ghế đã 'booked'
+      }
+    ]
+  }
+
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateMany(filter, update, options)
+}
+
 export const showtimeModel = {
   createNew,
   findOneById,
   getAll,
   updateSeatsStatus,
-  rollbackSeatHold
+  rollbackSeatHold,
+  releaseBookedSeats
 }

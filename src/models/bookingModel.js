@@ -187,6 +187,29 @@ const getBookingStats = async (startDate, endDate) => {
   }
 }
 
+const update = async (id, data) => {
+  try {
+    // Lọc các trường không được phép cập nhật
+    delete data.createdAt
+    delete data._id
+    delete data.userId // Không nên cho đổi userId của booking
+
+    const updateData = {
+      ...data,
+      updatedAt: new Date() // Cập nhật thời gian
+    }
+
+    const result = await GET_DB().collection(BOOKING_COLLECTION_NAME).findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: updateData },
+      { returnDocument: 'after' }
+    )
+    return result
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
 export const bookingModel = {
   BOOKING_COLLECTION_NAME,
   BOOKING_COLLECTION_SCHEMA,
@@ -196,5 +219,6 @@ export const bookingModel = {
   updatePaymentStatus,
   cancelBooking,
   checkSeatAvailability,
-  getBookingStats
+  getBookingStats,
+  update
 }
