@@ -162,5 +162,22 @@ export const bookingController = {
       // Trả về lỗi 400 (Bad Request) cho các lỗi nghiệp vụ
       res.status(400).json({ errors: error.message })
     }
+  },
+
+  // HÀM MỚI: (Admin) Cập nhật booking
+  updateBooking: async (req, res, next) => {
+    try {
+      const { id: bookingId } = req.params
+      const updateData = req.body // Dữ liệu đã được validation lọc
+
+      if (!ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ errors: 'Invalid Booking ID' })
+      }
+
+      const result = await bookingService.updateBooking(bookingId, updateData)
+      res.status(200).json(result)
+    } catch (error) {
+      next(error)
+    }
   }
 }

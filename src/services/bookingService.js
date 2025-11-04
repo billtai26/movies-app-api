@@ -1,7 +1,6 @@
 import { bookingModel } from '~/models/bookingModel'
 import { showtimeModel } from '~/models/showtimeModel'
 import { userModel } from '~/models/userModel'
-import { ObjectId } from 'mongodb'
 
 // Định nghĩa số giờ tối thiểu trước suất chiếu để được hủy
 const CANCELLATION_LIMIT_HOURS = 1
@@ -121,9 +120,24 @@ const cancelBooking = async (userId, bookingId) => {
   }
 }
 
+/**
+ * (Admin) Cập nhật thông tin booking
+ */
+const updateBooking = async (bookingId, updateData) => {
+  const booking = await bookingModel.findOneById(bookingId)
+  if (!booking) {
+    throw new Error('Booking not found')
+  }
+
+  // Gọi hàm update chung đã có trong model
+  const updatedBooking = await bookingModel.update(bookingId, updateData)
+  return updatedBooking
+}
+
 export const bookingService = {
   getBookingHistory,
   getTicketDetails,
   verifyAndUseTicket,
-  cancelBooking
+  cancelBooking,
+  updateBooking
 }
