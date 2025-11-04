@@ -1,6 +1,8 @@
 import express from 'express'
 import { bookingController } from '~/controllers/bookingController'
 import { protect } from '~/middlewares/authMiddleware'
+import { bookingValidation } from '~/validations/bookingValidation'
+import { admin } from '~/middlewares/adminMiddleware'
 
 const Router = express.Router()
 
@@ -15,5 +17,14 @@ Router.route('/:id/invoice-pdf').get(bookingController.generateInvoicePDF)
 
 Router.route('/:id/cancel')
   .put(protect, bookingController.cancelBooking)
+
+// 6. PATCH Chỉnh sửa (Admin)
+Router.route('/:id')
+  .patch(
+    protect,
+    admin,
+    bookingValidation.updateBooking, // <-- 2. THÊM ROUTE MỚI
+    bookingController.updateBooking
+  )
 
 export const bookingRoute = Router
