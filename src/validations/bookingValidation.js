@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants'
 
 /**
  * Validation cho Admin cập nhật một booking
@@ -23,6 +24,30 @@ const updateBooking = async (req, res, next) => {
   }
 }
 
+/**
+ * Validation cho User đổi vé
+ */
+const exchangeTicket = async (req, res, next) => {
+  const correctCondition = Joi.object({
+    newShowtimeId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+    newSeats: Joi.array().items(
+      Joi.object({
+        row: Joi.string().required(),
+        number: Joi.number().required(),
+        price: Joi.number().required()
+      })
+    ).required().min(1) // Phải chọn ít nhất 1 ghế mới
+  })
+
+  try {
+    await correctCondition.validateAsync(req.body, { abortEarly: false })
+    next()
+  } catch (error) {
+    res.status(400).json({ errors: error.details.map(d => d.message) })
+  }
+}
+
 export const bookingValidation = {
-  updateBooking
+  updateBooking,
+  exchangeTicket
 }

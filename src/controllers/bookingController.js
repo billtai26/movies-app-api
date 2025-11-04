@@ -179,5 +179,23 @@ export const bookingController = {
     } catch (error) {
       next(error)
     }
+  },
+
+  // PUT /v1/bookings/:id/exchange (User)
+  exchangeTicket: async (req, res, next) => {
+    try {
+      const userId = req.user._id
+      const { id: originalBookingId } = req.params
+      const { newShowtimeId, newSeats } = req.body
+
+      if (!ObjectId.isValid(originalBookingId) || !ObjectId.isValid(newShowtimeId)) {
+        return res.status(400).json({ errors: 'Invalid Booking or Showtime ID format' })
+      }
+
+      const result = await bookingService.exchangeTicket(userId, originalBookingId, newShowtimeId, newSeats)
+      res.status(200).json(result)
+    } catch (error) {
+      res.status(400).json({ errors: error.message })
+    }
   }
 }

@@ -27,4 +27,12 @@ Router.route('/:id')
     bookingController.updateBooking
   )
 
+// 7. PUT Đổi vé (User) <-- THÊM ROUTE MỚI
+Router.route('/:id/exchange')
+  .put(
+    protect,
+    bookingValidation.exchangeTicket,
+    bookingController.exchangeTicket
+  )
+
 export const bookingRoute = Router
