@@ -1,6 +1,10 @@
 import { bookingModel } from '~/models/bookingModel'
 import { showtimeModel } from '~/models/showtimeModel'
 import { userModel } from '~/models/userModel'
+import { movieModel } from '~/models/movieModel' // <-- IMPORT THÊM
+import { notificationService } from '~/services/notificationService' // <-- IMPORT THÊM
+import { env } from '~/config/environment' // <-- IMPORT THÊM
+import { ObjectId } from 'mongodb'
 
 // Định nghĩa số giờ tối thiểu trước suất chiếu để được hủy
 const CANCELLATION_LIMIT_HOURS = 1
@@ -134,10 +138,105 @@ const updateBooking = async (bookingId, updateData) => {
   return updatedBooking
 }
 
+/**
+ * (User) Đổi vé (ngang giá)
+ */
+const exchangeTicket = async (userId, originalBookingId, newShowtimeId, newSeats) => {
+  // 1. Tìm booking gốc
+  const originalBooking = await bookingModel.findOneById(originalBookingId)
+  if (!originalBooking) throw new Error('Original booking not found')
+
+  // 2. Kiểm tra các điều kiện (tương tự như hủy vé)
+  if (originalBooking.userId.toString() !== userId.toString()) {
+    throw new Error('Not authorized to exchange this booking')
+  }
+  if (originalBooking.paymentStatus !== 'completed') {
+    throw new Error('Cannot exchange a booking that is not completed')
+  }
+  if (originalBooking.bookingStatus === 'cancelled') {
+    throw new Error('Cannot exchange a cancelled booking')
+  }
+  if (originalBooking.isUsed) {
+    throw new Error('Cannot exchange a ticket that has already been used')
+  }
+
+  // 3. Kiểm tra thời gian (so với suất chiếu GỐC)
+  const originalShowtime = await showtimeModel.findOneById(originalBooking.showtimeId)
+  if (!originalShowtime) throw new Error('Original showtime details could not be found')
+
+  const now = new Date()
+  const originalStartTime = new Date(originalShowtime.starttime) // Sửa 'starttime' thành 'startTime'
+  const hoursBeforeShow = (originalStartTime.getTime() - now.getTime()) / 3600000
+
+  if (hoursBeforeShow < CANCELLATION_LIMIT_HOURS) {
+    throw new Error(`Tickets can only be exchanged up to ${CANCELLATION_LIMIT_HOURS} hours before the original showtime`)
+  }
+
+  // 4. Kiểm tra suất chiếu mới và tính giá vé mới
+  const newShowtime = await showtimeModel.findOneById(newShowtimeId)
+  if (!newShowtime) throw new Error('New showtime not found')
+
+  const newSeatNumbers = newSeats.map(s => `${s.row}${s.number}`)
+  let newTotalAmount = 0
+
+  // 5. Kiểm tra ghế mới có available không VÀ tính tổng tiền mới
+  for (const newSeat of newSeats) {
+    const seatInShowtime = newShowtime.seats.find(s => s.seatNumber === `${newSeat.row}${newSeat.number}`)
+    if (!seatInShowtime || seatInShowtime.status !== 'available') {
+      throw new Error(`Seat ${newSeat.row}${newSeat.number} is not available in the new showtime`)
+    }
+    // (Giả sử client gửi giá đúng, hoặc bạn có thể lấy giá từ seatInShowtime.price)
+    newTotalAmount += newSeat.price
+  }
+
+  // 6. KIỂM TRA ĐIỀU KIỆN NGANG GIÁ (Rất quan trọng)
+  // Chúng ta so sánh giá trị GỐC (originalAmount) của vé cũ
+  if (newTotalAmount !== originalBooking.originalAmount) {
+    throw new Error(`Ticket exchange must be of the same value. Original: ${originalBooking.originalAmount}, New: ${newTotalAmount}. Please cancel and re-book.`)
+  }
+
+  // 7. Thực hiện Đổi vé (Release + Book)
+  // 7a. Mở lại ghế cũ
+  const oldSeatNumbers = originalBooking.seats.map(seat => `${seat.row}${seat.number}`)
+  await showtimeModel.releaseBookedSeats(originalBooking.showtimeId, oldSeatNumbers)
+
+  // 7b. Đặt ghế mới (chuyển sang 'booked')
+  await showtimeModel.updateSeatsStatus(
+    newShowtimeId,
+    newSeatNumbers,
+    'booked',
+    userId, // Gán 'booked' cho user
+    null
+  )
+
+  // 7c. Cập nhật booking cũ
+  const updatedBooking = await bookingModel.update(originalBookingId, {
+    showtimeId: new ObjectId(newShowtimeId),
+    movieId: new ObjectId(newShowtime.movieId),
+    seats: newSeats,
+    // Tất cả các trường khác (amount, points, voucher) giữ nguyên vì là đổi ngang giá
+    updatedAt: new Date()
+  })
+
+  // 8. Gửi thông báo
+  const movie = await movieModel.findOneById(updatedBooking.movieId)
+  const link = `${env.APP_URL_FRONTEND || 'http://your-frontend-url.com'}/my-tickets/${updatedBooking._id}`
+  await notificationService.createNotification(
+    userId.toString(), 
+    'ticket', 
+    'Đổi vé thành công!',
+    `Vé của bạn cho phim "${movie ? movie.title : ''}" đã được đổi thành công sang suất chiếu mới.`,
+    link, true
+  )
+
+  return updatedBooking
+}
+
 export const bookingService = {
   getBookingHistory,
   getTicketDetails,
   verifyAndUseTicket,
   cancelBooking,
-  updateBooking
+  updateBooking,
+  exchangeTicket
 }
