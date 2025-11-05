@@ -116,7 +116,7 @@ export const bookingController = {
 
       // Set response headers
       res.setHeader('Content-Type', 'application/pdf')
-      res.setHeader('Content-Disposition', `attachment; filename=invoice-${bookingId}.pdf`)
+      res.setHeader('Content-Disposition', `attachment filename=invoice-${bookingId}.pdf`)
 
       // Send the PDF
       return res.send(pdfBuffer)
@@ -182,7 +182,7 @@ export const bookingController = {
   },
 
   // PUT /v1/bookings/:id/exchange (User)
-  exchangeTicket: async (req, res, next) => {
+  exchangeTicket: async (req, res) => {
     try {
       const userId = req.user._id
       const { id: originalBookingId } = req.params
@@ -195,6 +195,28 @@ export const bookingController = {
       const result = await bookingService.exchangeTicket(userId, originalBookingId, newShowtimeId, newSeats)
       res.status(200).json(result)
     } catch (error) {
+      res.status(400).json({ errors: error.message })
+    }
+  },
+
+  // HÀM MỚI: (Admin) Đổi ghế tại quầy
+  changeSeatsAtCounter: async (req, res) => {
+    try {
+      const { id: bookingId } = req.params
+      const { oldSeats, newSeats } = req.body
+
+      if (!ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ errors: 'Invalid Booking ID format' })
+      }
+
+      const result = await bookingService.changeSeatsAtCounter(
+        bookingId,
+        oldSeats,
+        newSeats
+      )
+      res.status(200).json(result)
+    } catch (error) {
+      // Chuyển lỗi nghiệp vụ (ví dụ: ghế đã bị chiếm)
       res.status(400).json({ errors: error.message })
     }
   }

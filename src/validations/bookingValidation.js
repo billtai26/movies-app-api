@@ -47,7 +47,45 @@ const exchangeTicket = async (req, res, next) => {
   }
 }
 
+/**
+ * Validation cho Admin đổi ghế tại quầy
+ */
+const changeSeatsAtCounter = async (req, res, next) => {
+  const correctCondition = Joi.object({
+    // Ghế cũ (client gửi lên để đối chiếu)
+    oldSeats: Joi.array().items(
+      Joi.object({
+        row: Joi.string().required(),
+        number: Joi.number().required()
+      })
+    ).required().min(1),
+
+    // Ghế mới
+    newSeats: Joi.array().items(
+      Joi.object({
+        row: Joi.string().required(),
+        number: Joi.number().required(),
+        price: Joi.number().required() // Cần giá để cập nhật booking
+      })
+    ).required().min(1)
+  })
+
+  try {
+    await correctCondition.validateAsync(req.body, { abortEarly: false })
+
+    // Kiểm tra logic: Số lượng ghế đổi phải bằng nhau
+    if (req.body.oldSeats.length !== req.body.newSeats.length) {
+      throw new Error('Số lượng ghế cũ và ghế mới phải bằng nhau.')
+    }
+
+    next()
+  } catch (error) {
+    res.status(400).json({ errors: error.details ? error.details.map(d => d.message) : error.message })
+  }
+}
+
 export const bookingValidation = {
   updateBooking,
-  exchangeTicket
+  exchangeTicket,
+  changeSeatsAtCounter
 }

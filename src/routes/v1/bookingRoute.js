@@ -35,4 +35,13 @@ Router.route('/:id/exchange')
     bookingController.exchangeTicket
   )
 
+// 8. POST Đổi ghế tại quầy (Admin/Nhân viên)
+Router.route('/:id/change-seats-at-counter')
+  .post(
+    protect,
+    admin,
+    bookingValidation.changeSeatsAtCounter, // Validation mới
+    bookingController.changeSeatsAtCounter // Controller mới
+  )
+
 export const bookingRoute = Router
