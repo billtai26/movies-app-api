@@ -29,6 +29,5 @@ Router.use('/reviews', reviewRoute)
 Router.use('/comments', commentRoute)
 Router.use('/notifications', notificationRoute)
 Router.use('/submissions', submissionRoute)
-Router.use('/submissions', submissionRoute)
 
 export const APIs_V1 = Router
