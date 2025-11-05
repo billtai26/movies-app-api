@@ -222,8 +222,8 @@ const exchangeTicket = async (userId, originalBookingId, newShowtimeId, newSeats
   const movie = await movieModel.findOneById(updatedBooking.movieId)
   const link = `${env.APP_URL_FRONTEND || 'http://your-frontend-url.com'}/my-tickets/${updatedBooking._id}`
   await notificationService.createNotification(
-    userId.toString(), 
-    'ticket', 
+    userId.toString(),
+    'ticket',
     'Đổi vé thành công!',
     `Vé của bạn cho phim "${movie ? movie.title : ''}" đã được đổi thành công sang suất chiếu mới.`,
     link, true
@@ -232,11 +232,95 @@ const exchangeTicket = async (userId, originalBookingId, newShowtimeId, newSeats
   return updatedBooking
 }
 
+/**
+ * (Admin) Đổi ghế tại quầy (trong cùng 1 suất chiếu)
+ */
+const changeSeatsAtCounter = async (bookingId, oldSeats, newSeats) => {
+  // 1. Tìm booking gốc
+  const booking = await bookingModel.findOneById(bookingId)
+  if (!booking) throw new Error('Booking not found')
+
+  // Không cần check userId vì đây là Admin
+  if (booking.bookingStatus === 'cancelled' || booking.isUsed) {
+    throw new Error('Cannot change seats for a cancelled or used ticket')
+  }
+
+  // 2. Kiểm tra ghế cũ có khớp với booking không
+  const oldSeatNumbersBooking = booking.seats.map(s => `${s.row}${s.number}`)
+  const oldSeatNumbersInput = oldSeats.map(s => `${s.row}${s.number}`)
+
+  if (oldSeatNumbersBooking.sort().join(',') !== oldSeatNumbersInput.sort().join(',')) {
+    throw new Error('Danh sách ghế cũ không khớp với vé.')
+  }
+
+  // 3. Lấy showtime (chỉ 1 lần vì chung suất chiếu)
+  const showtime = await showtimeModel.findOneById(booking.showtimeId)
+  if (!showtime) throw new Error('Showtime not found')
+
+  const newSeatNumbers = newSeats.map(s => `${s.row}${s.number}`)
+  let newTotalAmount = 0
+
+  // 4. Kiểm tra ghế mới có available không
+  for (const newSeat of newSeats) {
+    const seatInShowtime = showtime.seats.find(s => s.seatNumber === `${newSeat.row}${newSeat.number}`)
+    if (!seatInShowtime || seatInShowtime.status !== 'available') {
+      throw new Error(`Seat ${newSeat.row}${newSeat.number} is not available`)
+    }
+    newTotalAmount += newSeat.price
+  }
+
+  // (Optional: Bạn có thể bỏ qua check giá nếu admin đổi ngang)
+  // if (newTotalAmount !== booking.totalAmount) {
+  //   throw new Error('Giá vé mới không bằng giá vé cũ. Vui lòng hủy và đặt lại.')
+  // }
+  // Hoặc cập nhật lại tổng tiền nếu cho phép
+  const newOriginalAmount = newSeats.reduce((acc, seat) => acc + seat.price, 0)
+
+
+  // ----- BẮT ĐẦU TRANSACTION (Nếu bạn dùng Replica Set) -----
+  // const session = await mongoose.startSession()
+  // session.startTransaction()
+  // try {
+
+  // 5. Mở lại ghế cũ
+  await showtimeModel.releaseBookedSeats(booking.showtimeId, oldSeatNumbersBooking /*, { session }*/)
+
+  // 6. Đặt ghế mới
+  await showtimeModel.updateSeatsStatus(
+    booking.showtimeId,
+    newSeatNumbers,
+    'booked',
+    booking.userId // Vẫn gán cho user
+    /*, { session }*/
+  )
+
+  // 7. Cập nhật lại booking
+  const updatedBooking = await bookingModel.update(bookingId, {
+    seats: newSeats,
+    totalAmount: newTotalAmount, // Cập nhật tổng tiền mới
+    originalAmount: newOriginalAmount, // Cập nhật giá gốc mới
+    updatedAt: new Date()
+  } /*, { session }*/)
+
+  // await session.commitTransaction()
+  // session.endSession()
+
+  return updatedBooking
+
+  // } catch (error) {
+  //   await session.abortTransaction()
+  //   session.endSession()
+  //   throw error // Ném lỗi để controller bắt
+  // }
+  // ----- KẾT THÚC TRANSACTION -----
+}
+
 export const bookingService = {
   getBookingHistory,
   getTicketDetails,
   verifyAndUseTicket,
   cancelBooking,
   updateBooking,
-  exchangeTicket
+  exchangeTicket,
+  changeSeatsAtCounter
 }
