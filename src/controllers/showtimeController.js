@@ -1,6 +1,56 @@
 import { showtimeService } from '~/services/showtimeService'
 
 /**
+ * HÀM MỚI: (Admin) Thêm lịch chiếu
+ */
+const createNew = async (req, res, next) => {
+  try {
+    const createdShowtime = await showtimeService.createNew(req.body)
+    res.status(201).json(createdShowtime)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) Sửa lịch chiếu
+ */
+const updateShowtime = async (req, res, next) => {
+  try {
+    const showtimeId = req.params.id
+    const updatedShowtime = await showtimeService.updateShowtime(showtimeId, req.body)
+    res.status(200).json(updatedShowtime)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá lịch chiếu
+ */
+const deleteShowtime = async (req, res, next) => {
+  try {
+    const showtimeId = req.params.id
+    const result = await showtimeService.deleteShowtime(showtimeId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Public) Lấy danh sách, lọc
+ */
+const getShowtimes = async (req, res, next) => {
+  try {
+    const result = await showtimeService.getShowtimes(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * Lấy thông tin chi tiết một suất chiếu, bao gồm cả sơ đồ ghế.
  */
 const getShowtimeDetails = async (req, res, next) => {
@@ -38,6 +88,10 @@ const holdSeats = async (req, res, next) => {
 }
 
 export const showtimeController = {
+  createNew,
+  updateShowtime,
+  deleteShowtime,
+  getShowtimes,
   getShowtimeDetails,
   holdSeats
 }

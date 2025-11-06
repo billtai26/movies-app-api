@@ -22,20 +22,98 @@ const SHOWTIME_COLLECTION_SCHEMA = Joi.object({
 })
 
 const createNew = async (data) => {
+  // data nhận vào lúc này: { movieId: 'string', theaterId: 'string', startTime: DateObject ... }
+
+  // 1. Validate (Joi sẽ validate string, date... và pass)
   const validData = await SHOWTIME_COLLECTION_SCHEMA.validateAsync(data, { abortEarly: false })
-  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).insertOne(validData)
+
+  // 2. Tạo object để insert, convert ID tại đây
+  const dataToInsert = {
+    ...validData,
+    movieId: new ObjectId(validData.movieId),
+    theaterId: new ObjectId(validData.theaterId)
+    // startTime đã là Date Object từ service, nên Joi(Joi.date()) vẫn chấp nhận
+  }
+
+  // 3. Insert object đã convert
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).insertOne(dataToInsert)
 }
 
 const findOneById = async (id) => {
-  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).findOne({ _id: new ObjectId(id) })
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).findOne({
+    _id: new ObjectId(id),
+    _destroy: false
+  })
 }
 
-const getAll = async ({ status }) => {
-  let query = { _destroy: false }
-  if (status) {
-    query.status = status
-  }
-  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).find(query).toArray()
+const getAll = async ({ filters = {}, pagination = {} }) => {
+  try {
+    const { movieId, theaterId, date } = filters
+    const { page = 1, limit = 10, skip = 0 } = pagination
+
+    let query = { _destroy: false }
+
+    if (movieId) query.movieId = new ObjectId(movieId)
+    if (theaterId) query.theaterId = new ObjectId(theaterId)
+
+    // Lọc theo ngày (Rất quan trọng)
+    if (date) {
+      // Bắt đầu ngày (local): 2025-11-29 00:00:00 (Local)
+      const startDate = new Date(date + 'T00:00:00')
+
+      // Kết thúc ngày (local): 2025-11-29 23:59:59 (Local)
+      const endDate = new Date(date + 'T23:59:59.999')
+
+      query.startTime = {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }
+
+    // 1. Truy vấn lấy tổng số document
+    const totalShowtimes = await GET_DB().collection(SHOWTIME_COLLECTION_NAME).countDocuments(query)
+
+    // 2. Truy vấn lấy data (có phân trang)
+    const showtimes = await GET_DB().collection(SHOWTIME_COLLECTION_NAME)
+      .find(query)
+      .sort({ startTime: 1 }) // Sắp xếp theo suất chiếu sớm nhất
+      .skip(skip)
+      .limit(limit)
+      .toArray()
+
+    return {
+      showtimes,
+      pagination: {
+        totalShowtimes,
+        totalPages: Math.ceil(totalShowtimes / limit),
+        currentPage: page,
+        limit
+      }
+    }
+  } catch (error) { throw new Error(error) }
+}
+
+/**
+ * HÀM MỚI: Sửa lịch chiếu (chỉ sửa startTime)
+ */
+const update = async (id, data) => {
+  delete data._id // Không cho update _id
+
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).findOneAndUpdate(
+    { _id: new ObjectId(id), _destroy: false },
+    { $set: { ...data, updatedAt: new Date() } },
+    { returnDocument: 'after' }
+  )
+}
+
+/**
+ * HÀM MỚI: Xoá mềm lịch chiếu
+ */
+const softDelete = async (id) => {
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true, updatedAt: new Date() } }
+  )
 }
 
 // Hàm này rất quan trọng: Cập nhật nhiều ghế cùng lúc (Atomic)
@@ -124,6 +202,8 @@ export const showtimeModel = {
   createNew,
   findOneById,
   getAll,
+  update,
+  softDelete,
   updateSeatsStatus,
   rollbackSeatHold,
   releaseBookedSeats
