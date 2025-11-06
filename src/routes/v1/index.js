@@ -12,6 +12,7 @@ import { reviewRoute } from './reviewRoute'
 import { commentRoute } from './commentRoute'
 import { notificationRoute } from './notificationRoute'
 import { submissionRoute } from './submissionRoute'
+import { genreRoute } from '~/routes/v1/genreRoute'
 
 const Router = express.Router()
 
@@ -29,5 +30,6 @@ Router.use('/reviews', reviewRoute)
 Router.use('/comments', commentRoute)
 Router.use('/notifications', notificationRoute)
 Router.use('/submissions', submissionRoute)
+Router.use('/genres', genreRoute)
 
 export const APIs_V1 = Router
