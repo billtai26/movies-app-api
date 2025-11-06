@@ -29,8 +29,30 @@ const getMovieDetails = async (req, res, next) => {
   }
 }
 
+const updateMovie = async (req, res, next) => {
+  try {
+    const movieId = req.params.id
+    const updatedMovie = await movieService.updateMovie(movieId, req.body)
+    res.status(200).json(updatedMovie)
+  } catch (error) {
+    next(error)
+  }
+}
+
+const deleteMovie = async (req, res, next) => {
+  try {
+    const movieId = req.params.id
+    await movieService.deleteMovie(movieId)
+    res.status(200).json({ message: 'Movie soft deleted successfully' })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const movieController = {
   createNew,
   getMovies,
-  getMovieDetails
+  getMovieDetails,
+  updateMovie,
+  deleteMovie
 }
