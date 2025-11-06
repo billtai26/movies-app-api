@@ -31,39 +31,58 @@ const createNew = async (data) => {
 }
 
 const findOneById = async (id) => {
-  return await GET_DB().collection(MOVIE_COLLECTION_NAME).findOne({ _id: new ObjectId(id) })
+  return await GET_DB().collection(MOVIE_COLLECTION_NAME).findOne({
+    _id: new ObjectId(id),
+    _destroy: false // Chỉ tìm phim chưa bị xoá
+  })
 }
 
 // CẬP NHẬT HÀM NÀY
-const getAll = async ({ status, q, genre }) => { // Thêm 'genre' vào tham số
+const getAll = async (filters = {}, pagination = {}) => {
   try {
+    const { status, q, genre } = filters
+    const { page = 1, limit = 10, skip = 0 } = pagination
+
     let query = { _destroy: false }
 
-    // Lọc theo status (đã có)
+    // Lọc theo status
     if (status) {
       query.status = status
     }
 
-    // Tìm kiếm theo tên (đã có)
+    // Tìm kiếm theo tên
     if (q) {
-      // Dùng $regex hoặc $text tùy bạn chọn
       query.title = { $regex: new RegExp(q, 'i') }
-      // Hoặc: query.$text = { $search: q } (nếu dùng Text Index)
     }
 
-    // --- THÊM LOGIC LỌC THEO THỂ LOẠI ---
+    // Lọc theo thể loại
     if (genre) {
-      // Nếu 'genre' là một chuỗi đơn (vd: "Action"), chuyển nó thành mảng một phần tử
-      // Nếu 'genre' đã là mảng (vd: ["Action", "Drama"]), giữ nguyên
       const genresToFilter = Array.isArray(genre) ? genre : [genre]
-
-      // Thêm điều kiện: trường 'genres' phải chứa ÍT NHẤT MỘT thể loại trong genresToFilter
       query.genres = { $in: genresToFilter }
     }
-    // ------------------------------------
 
-    // Tìm kiếm với tất cả điều kiện
-    return await GET_DB().collection(MOVIE_COLLECTION_NAME).find(query).toArray()
+    // ----- THỰC THI 2 TRUY VẤN -----
+    // 1. Truy vấn lấy tổng số document (để phân trang)
+    const totalMovies = await GET_DB().collection(MOVIE_COLLECTION_NAME).countDocuments(query)
+
+    // 2. Truy vấn lấy data (có phân trang)
+    const movies = await GET_DB().collection(MOVIE_COLLECTION_NAME)
+      .find(query)
+      .sort({ createdAt: -1 }) // Sắp xếp phim mới nhất lên đầu
+      .skip(skip)
+      .limit(limit)
+      .toArray()
+
+    // 3. Trả về kết quả
+    return {
+      movies,
+      pagination: {
+        totalMovies,
+        totalPages: Math.ceil(totalMovies / limit),
+        currentPage: page,
+        limit
+      }
+    }
 
   } catch (error) { throw new Error(error) }
 }
@@ -82,9 +101,36 @@ const updateRating = async (id, averageRating, reviewCount) => {
   )
 }
 
+// HÀM MỚI: Cập nhật thông tin chung
+const update = async (id, data) => {
+  // Loại bỏ các trường không được phép cập nhật (nếu có)
+  delete data.averageRating
+  delete data.reviewCount
+  delete data._id
+
+  return await GET_DB().collection(MOVIE_COLLECTION_NAME).findOneAndUpdate(
+    {
+      _id: new ObjectId(id),
+      _destroy: false
+    }, // Chỉ cập nhật phim chưa bị xoá
+    { $set: { ...data, updatedAt: new Date() } },
+    { returnDocument: 'after' } // Trả về document sau khi update
+  )
+}
+
+// HÀM MỚI: Xoá mềm
+const softDelete = async (id) => {
+  return await GET_DB().collection(MOVIE_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true, updatedAt: new Date() } }
+  )
+}
+
 export const movieModel = {
   createNew,
   findOneById,
   getAll,
-  updateRating
+  updateRating,
+  update,
+  softDelete
 }
