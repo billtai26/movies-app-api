@@ -1,11 +1,18 @@
 import { cinemaHallModel } from '~/models/cinemaHallModel'
+import { cinemaModel } from '~/models/cinemaModel'
 
 /**
  * 1. Thêm phòng chiếu (và tự động tạo ghế)
  */
 const createNew = async (reqBody) => {
   try {
-    const { name, cinemaType, seatLayout } = reqBody
+    const { cinemaId, name, cinemaType, seatLayout } = reqBody
+
+    // 1. Kiểm tra Cụm rạp (cha) có tồn tại không
+    const cinema = await cinemaModel.findOneById(cinemaId)
+    if (!cinema) {
+      throw new Error('Cinema not found')
+    }
 
     // --- Logic tự động tạo ghế ---
     let seats = []
@@ -30,6 +37,7 @@ const createNew = async (reqBody) => {
     // --- Kết thúc logic tạo ghế ---
 
     const newHallData = {
+      cinemaId: cinemaId, // <-- Pass cinemaId (dạng string)
       name,
       cinemaType,
       seats: seats,
@@ -91,8 +99,8 @@ const getHallDetails = async (hallId) => {
  */
 const getHalls = async (queryParams) => {
   try {
-    const { q, cinemaType, page, limit } = queryParams
-    const filters = { q, cinemaType }
+    const { q, cinemaType, cinemaId, page, limit } = queryParams
+    const filters = { q, cinemaType, cinemaId }
 
     const pageNum = parseInt(page) || 1
     const limitNum = parseInt(limit) || 10

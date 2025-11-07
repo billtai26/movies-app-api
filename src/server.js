@@ -63,6 +63,17 @@ const START_SERVER = () => {
   // Bắt đầu chạy job tự động hủy ghế
   startReleaseSeatsJob()
 
+  app.use((err, req, res, next) => {
+
+    // Lấy statusCode từ ApiError. Nếu không có (lỗi 500), mặc định là 500
+    const statusCode = err.statusCode || 500
+
+    // Trả về lỗi dạng JSON mà bạn mong muốn
+    res.status(statusCode).json({
+      errors: err.message
+    })
+  })
+
   httpServer.listen(env.LOCAL_DEV_APP_PORT, env.LOCAL_DEV_APP_HOST, () => {
     console.log(`3. Hi ${env.AUTHOR}, Back-end Server is running successfully at Host: ${env.LOCAL_DEV_APP_HOST} and Port: ${env.LOCAL_DEV_APP_PORT}`)
   })
