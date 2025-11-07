@@ -15,6 +15,9 @@ const SEAT_SCHEMA = Joi.object({
 
 // Định nghĩa Phòng chiếu (CinemaHall)
 const CINEMA_HALL_COLLECTION_SCHEMA = Joi.object({
+  // THÊM TRƯỜNG MỚI
+  cinemaId: Joi.string().required(), // Sẽ convert sang ObjectId
+
   name: Joi.string().required().min(3).max(50).trim().strict(), // "Phòng 1", "IMAX"
   cinemaType: Joi.string().valid('2D', '3D', 'IMAX').required(),
 
@@ -31,9 +34,14 @@ const CINEMA_HALL_COLLECTION_SCHEMA = Joi.object({
  * 1. Thêm phòng chiếu (đã bao gồm ghế)
  */
 const createNew = async (data) => {
-  // Validate toàn bộ object, bao gồm mảng ghế
   const validData = await CINEMA_HALL_COLLECTION_SCHEMA.validateAsync(data, { abortEarly: false })
-  return await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).insertOne(validData)
+
+  // Convert cinemaId trước khi insert
+  const dataToInsert = {
+    ...validData,
+    cinemaId: new ObjectId(validData.cinemaId)
+  }
+  return await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).insertOne(dataToInsert)
 }
 
 /**
@@ -96,12 +104,13 @@ const softDelete = async (id) => {
  */
 const getAll = async (filters = {}, pagination = {}) => {
   try {
-    const { q, cinemaType } = filters
+    const { q, cinemaType, cinemaId } = filters
     const { page = 1, limit = 10, skip = 0 } = pagination
 
     let query = { _destroy: false }
     if (q) query.name = { $regex: new RegExp(q, 'i') }
     if (cinemaType) query.cinemaType = cinemaType
+    if (cinemaId) query.cinemaId = new ObjectId(cinemaId)
 
     const totalHalls = await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).countDocuments(query)
     const halls = await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME)
@@ -124,11 +133,20 @@ const getAll = async (filters = {}, pagination = {}) => {
   } catch (error) { throw new Error(error) }
 }
 
+// HÀM MỚI (Dùng cho cinemaService)
+const findHallsByCinema = async (cinemaId) => {
+  return await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).find({
+    cinemaId: new ObjectId(cinemaId),
+    _destroy: false
+  }).toArray()
+}
+
 export const cinemaHallModel = {
   createNew,
   findOneById,
   update,
   updateSeatStatus,
   softDelete,
-  getAll
+  getAll,
+  findHallsByCinema
 }

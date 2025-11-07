@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants'
 
 /**
  * 1. Validation cho Tạo mới (kiểm tra config tạo ghế)
@@ -12,6 +13,9 @@ const createNew = async (req, res, next) => {
   })
 
   const hallSchema = Joi.object({
+    // THÊM TRƯỜNG MỚI
+    // cinemaId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+
     name: Joi.string().required().min(3).max(50).trim().strict(),
     cinemaType: Joi.string().valid('2D', '3D', 'IMAX').required(),
     seatLayout: seatLayoutSchema.required()

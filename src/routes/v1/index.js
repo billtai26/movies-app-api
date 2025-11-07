@@ -14,6 +14,7 @@ import { notificationRoute } from './notificationRoute'
 import { submissionRoute } from './submissionRoute'
 import { genreRoute } from '~/routes/v1/genreRoute'
 import { cinemaHallRoute } from '~/routes/v1/cinemaHallRoute'
+import { cinemaRoute } from '~/routes/v1/cinemaRoute'
 
 const Router = express.Router()
 
@@ -33,5 +34,6 @@ Router.use('/notifications', notificationRoute)
 Router.use('/submissions', submissionRoute)
 Router.use('/genres', genreRoute)
 Router.use('/cinemahalls', cinemaHallRoute)
+Router.use('/cinemas', cinemaRoute)
 
 export const APIs_V1 = Router

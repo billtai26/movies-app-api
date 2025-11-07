@@ -2,7 +2,20 @@ import { cinemaHallService } from '~/services/cinemaHallService'
 
 const createNew = async (req, res, next) => {
   try {
-    const createdHall = await cinemaHallService.createNew(req.body)
+    // 1. Lấy ID từ URL (params)
+    const { cinemaId } = req.params
+
+    // 2. Lấy data từ body (đã được validation)
+    const bodyData = req.body
+
+    // 3. Gộp chúng lại thành 1 object
+    const dataToCreate = {
+      ...bodyData,
+      cinemaId: cinemaId // Thêm cinemaId vào
+    }
+
+    // 4. Gửi object đã gộp xuống Service
+    const createdHall = await cinemaHallService.createNew(dataToCreate)
     res.status(201).json(createdHall)
   } catch (error) {
     next(error)
