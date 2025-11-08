@@ -35,10 +35,18 @@ const deleteCombo = async (comboId) => {
   return { message: 'Combo deleted successfully' }
 }
 
+/**
+ * HÀM MỚI: Lấy danh sách cho Admin
+ */
+const adminGetAllCombos = async (queryParams) => {
+  return await comboModel.adminGetAll(queryParams)
+}
+
 export const comboService = {
   createNew,
   getAllCombos,
   getComboDetails,
   updateCombo,
-  deleteCombo
+  deleteCombo,
+  adminGetAllCombos
 }

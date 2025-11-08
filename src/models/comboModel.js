@@ -130,10 +130,80 @@ const deleteOneById = async (id) => {
   )
 }
 
+/**
+ * HÀM MỚI: Lấy danh sách cho Admin (Full data, không projection)
+ */
+const adminGetAll = async ({ q, page = 1, limit = 10, priceMin, priceMax, status, sort } = {}) => {
+  let query = {
+    _destroy: false
+    // BỎ status: 'active' ở đây
+  }
+
+  // Admin vẫn có thể lọc theo status (active/inactive)
+  if (status) {
+    query.status = status
+  }
+
+  // (Toàn bộ logic lọc 'q', 'priceFilter' giữ nguyên y hệt)
+  if (q) {
+    query.$or = [
+      { name: { $regex: new RegExp(q, 'i') } },
+      { description: { $regex: new RegExp(q, 'i') } }
+    ]
+  }
+  const priceFilter = {}
+  if (priceMin !== undefined) {
+    const min = parseInt(priceMin)
+    if (!isNaN(min)) priceFilter.$gte = min
+  }
+  if (priceMax !== undefined) {
+    const max = parseInt(priceMax)
+    if (!isNaN(max)) priceFilter.$lte = max
+  }
+  if (Object.keys(priceFilter).length > 0) {
+    query.price = priceFilter
+  }
+
+  // (Logic phân trang 'skip', 'limitNumber' giữ nguyên y hệt)
+  const pageNumber = Math.max(1, parseInt(page) || 1)
+  const limitNumber = Math.max(1, parseInt(limit) || 10)
+  const skip = (pageNumber - 1) * limitNumber
+
+  // (Logic sắp xếp 'sortObj' giữ nguyên y hệt)
+  let sortObj = { createdAt: -1 }
+  if (sort) {
+    if (sort === 'price_asc') sortObj = { price: 1 }
+    else if (sort === 'price_desc') sortObj = { price: -1 }
+    else if (sort === 'name_asc') sortObj = { name: 1 }
+    else if (sort === 'name_desc') sortObj = { name: -1 }
+  }
+
+  const total = await GET_DB().collection(COMBO_COLLECTION_NAME).countDocuments(query)
+
+  // -- SỬA ĐỔI QUAN TRỌNG --
+  const combos = await GET_DB().collection(COMBO_COLLECTION_NAME)
+    .find(query) // <-- BỎ HOÀN TOÀN 'projection'
+    .sort(sortObj)
+    .skip(skip)
+    .limit(limitNumber)
+    .toArray()
+
+  return {
+    combos, // Sẽ trả về đầy đủ (gồm cả imageUrl, status, createdAt...)
+    pagination: {
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber)
+    }
+  }
+}
+
 export const comboModel = {
   createNew,
   findOneById,
   getAllAvailable,
   update,
-  deleteOneById
+  deleteOneById,
+  adminGetAll
 }

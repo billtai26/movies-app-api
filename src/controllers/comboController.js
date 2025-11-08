@@ -45,10 +45,23 @@ const deleteCombo = async (req, res, next) => {
   }
 }
 
+/**
+ * HÀM MỚI: Lấy danh sách cho Admin
+ */
+const adminGetAllCombos = async (req, res, next) => {
+  try {
+    const combos = await comboService.adminGetAllCombos(req.query)
+    res.status(200).json(combos)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const comboController = {
   createNew,
   getAllCombos,
   getComboDetails,
   updateCombo,
-  deleteCombo
+  deleteCombo,
+  adminGetAllCombos
 }

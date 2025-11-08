@@ -16,6 +16,10 @@ Router.route('/:id')
   .get(comboController.getComboDetails)
 
 // === API cho Admin (Protected) ===
+// HÀM MỚI: GET /v1/combos/admin/list
+// Lấy danh sách đầy đủ cho Admin (không che, lọc status)
+Router.route('/admin/list')
+  .get(protect, admin, comboController.adminGetAllCombos)
 
 // POST /v1/combos - Tạo combo mới
 Router.route('/')
