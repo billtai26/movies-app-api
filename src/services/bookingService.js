@@ -5,6 +5,7 @@ import { movieModel } from '~/models/movieModel' // <-- IMPORT THÊM
 import { notificationService } from '~/services/notificationService' // <-- IMPORT THÊM
 import { env } from '~/config/environment' // <-- IMPORT THÊM
 import { ObjectId } from 'mongodb'
+import { ApiError } from '~/utils/ApiError'
 
 // Định nghĩa số giờ tối thiểu trước suất chiếu để được hủy
 const CANCELLATION_LIMIT_HOURS = 1
@@ -315,6 +316,67 @@ const changeSeatsAtCounter = async (bookingId, oldSeats, newSeats) => {
   // ----- KẾT THÚC TRANSACTION -----
 }
 
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách (Lọc, Phân trang)
+ */
+const adminGetBookings = async (queryParams) => {
+  const { userId, movieId, date, paymentStatus, bookingStatus, page, limit } = queryParams
+
+  const filters = {
+    userId,
+    movieId,
+    createdAtDate: date, // Đổi 'date' thành 'createdAtDate' cho model
+    paymentStatus,
+    bookingStatus
+  }
+
+  const pageNum = parseInt(page) || 1
+  const limitNum = parseInt(limit) || 10
+  const skip = (pageNum - 1) * limitNum
+  const pagination = { page: pageNum, limit: limitNum, skip }
+
+  return await bookingModel.getAll(filters, pagination)
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy chi tiết 1 vé/hoá đơn
+ */
+const adminGetBookingDetails = async (bookingId) => {
+  const booking = await bookingModel.findOneById(bookingId)
+  if (!booking) {
+    throw new ApiError(404, 'Booking not found')
+  }
+
+  // Làm giàu dữ liệu (Populate)
+  const user = await userModel.findOneById(booking.userId)
+  const movie = await movieModel.findOneById(booking.movieId)
+  const showtime = await showtimeModel.findOneById(booking.showtimeId) // (Đảm bảo showtimeModel có findOneById)
+
+  return {
+    ...booking,
+    userDetails: { email: user?.email, name: user?.name }, // Chỉ trả về thông tin an toàn
+    movieTitle: movie?.title,
+    showtimeDetails: { startTime: showtime?.startTime }
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá mềm 1 vé
+ */
+const adminDeleteBooking = async (bookingId) => {
+  const booking = await bookingModel.findOneById(bookingId)
+  if (!booking) {
+    throw new ApiError(404, 'Booking not found')
+  }
+
+  // Logic nghiệp vụ: Chỉ xoá mềm, không hoàn vé/hoàn điểm/trả ghế
+  // (Nếu muốn, bạn có thể gọi logic `cancelBooking` ở đây,
+  // nhưng "soft delete" thường chỉ là ẩn đi)
+
+  await bookingModel.softDelete(bookingId)
+  return { message: 'Booking soft deleted successfully' }
+}
+
 export const bookingService = {
   getBookingHistory,
   getTicketDetails,
@@ -322,5 +384,8 @@ export const bookingService = {
   cancelBooking,
   updateBooking,
   exchangeTicket,
-  changeSeatsAtCounter
+  changeSeatsAtCounter,
+  adminGetBookings,
+  adminGetBookingDetails,
+  adminDeleteBooking
 }

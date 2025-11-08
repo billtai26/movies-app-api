@@ -219,5 +219,41 @@ export const bookingController = {
       // Chuyển lỗi nghiệp vụ (ví dụ: ghế đã bị chiếm)
       res.status(400).json({ errors: error.message })
     }
+  },
+
+  /**
+   * HÀM MỚI: (Admin) GET /
+   */
+  adminGetBookings: async (req, res, next) => {
+    try {
+      const result = await bookingService.adminGetBookings(req.query)
+      res.status(200).json(result)
+    } catch (error) {
+      next(error)
+    }
+  },
+
+  /**
+   * HÀM MỚI: (Admin) GET /:id
+   */
+  adminGetBookingDetails: async (req, res, next) => {
+    try {
+      const booking = await bookingService.adminGetBookingDetails(req.params.id)
+      res.status(200).json(booking)
+    } catch (error) {
+      next(error)
+    }
+  },
+
+  /**
+   * HÀM MỚI: (Admin) DELETE /:id
+   */
+  adminDeleteBooking: async (req, res, next) => {
+    try {
+      const result = await bookingService.adminDeleteBooking(req.params.id)
+      res.status(200).json(result)
+    } catch (error) {
+      next(error)
+    }
   }
 }
