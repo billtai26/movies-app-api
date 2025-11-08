@@ -12,6 +12,26 @@ const Router = express.Router()
 // HÀM MỚI CHO ADMIN: LẤY DANH SÁCH USER (có lọc, tìm kiếm, phân trang)
 Router.route('/')
   .get(protect, admin, userController.getAllUsers)
+  // POST /v1/users (Mới - Admin tạo user)
+  .post(
+    protect,
+    admin,
+    userValidation.adminCreateUser,
+    userController.adminCreateUser
+  )
+
+// GET /v1/users/:id (Mới - Admin xem chi tiết)
+// PATCH /v1/users/:id (Mới - Admin sửa)
+// DELETE /v1/users/:id (Mới - Admin xoá)
+Router.route('/:id')
+  .get(protect, admin, userController.adminGetUserById)
+  .patch(
+    protect,
+    admin,
+    userValidation.adminUpdateUser,
+    userController.adminUpdateUser
+  )
+  .delete(protect, admin, userController.adminDeleteUser)
 
 Router.route('/register')
   .post(userValidation.register, userController.register)

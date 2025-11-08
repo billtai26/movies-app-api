@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'
 import { env } from '~/config/environment'
 import { mailService } from '~/utils/mailService'
 import crypto from 'crypto'
+import { ApiError } from '~/utils/ApiError'
 
 // SỬA LẠI HÀM REGISTER
 const register = async (reqBody) => {
@@ -187,6 +188,70 @@ const getAllUsers = async (queryParams) => {
   return allUsersData
 }
 
+/**
+ * HÀM MỚI: (Admin) Tạo user
+ * (Admin không cần verify email, mật khẩu có thể tự gán)
+ */
+const adminCreateUser = async (reqBody) => {
+  const { username, email, password, role } = reqBody
+  const userExists = await userModel.findOneByEmail(email)
+  if (userExists) {
+    throw new ApiError(400, 'E-mail already exists')
+  }
+
+  const salt = await bcrypt.genSalt(10)
+  const hashedPassword = await bcrypt.hash(password, salt)
+  const newUser = {
+    username,
+    email,
+    password: hashedPassword,
+    role: role || 'user', // Nếu admin không gán role, mặc định là user
+    isVerified: true // Admin tạo thì coi như đã xác thực
+  }
+  const createdUserResult = await userModel.createNew(newUser)
+  const createdUser = await userModel.findOneById(createdUserResult.insertedId)
+  delete createdUser.password // Xoá pass trước khi trả về
+  return createdUser
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy chi tiết 1 user
+ */
+const adminGetUserById = async (userId) => {
+  const user = await userModel.findOneById(userId)
+  if (!user || user._destroy) {
+    throw new ApiError(404, 'User not found')
+  }
+  delete user.password
+  return user
+}
+
+/**
+ * HÀM MỚI: (Admin) Cập nhật 1 user
+ */
+const adminUpdateUser = async (userId, updateData) => {
+  // Hàm update của model đã tự lọc các trường không hợp lệ
+  // updateData có thể chứa: username, role, loyaltyPoints, isVerified
+  const updatedUser = await userModel.update(userId, updateData)
+  if (!updatedUser) {
+    throw new ApiError(404, 'User not found')
+  }
+  delete updatedUser.password
+  return updatedUser
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá mềm 1 user
+ */
+const adminDeleteUser = async (userId) => {
+  const user = await userModel.findOneById(userId)
+  if (!user) {
+    throw new ApiError(404, 'User not found')
+  }
+  await userModel.deleteOneById(userId)
+  return { message: 'User soft deleted successfully' }
+}
+
 export const userService = {
   register,
   login,
@@ -196,5 +261,10 @@ export const userService = {
   resetPassword,
   updateProfile,
   deleteProfile,
-  getAllUsers
+  getAllUsers,
+  // Thêm 4 hàm mới
+  adminCreateUser,
+  adminGetUserById,
+  adminUpdateUser,
+  adminDeleteUser
 }
