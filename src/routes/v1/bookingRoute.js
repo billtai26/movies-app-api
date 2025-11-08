@@ -6,6 +6,11 @@ import { admin } from '~/middlewares/adminMiddleware'
 
 const Router = express.Router()
 
+// HÀM MỚI: (Admin) Lấy danh sách, lọc, phân trang
+// GET /v1/bookings?userId=...&date=2025-11-10&paymentStatus=completed
+Router.route('/')
+  .get(protect, admin, bookingController.adminGetBookings)
+
 // Get booking history for the authenticated user
 Router.route('/history').get(protect, bookingController.getBookingHistory)
 
@@ -20,12 +25,14 @@ Router.route('/:id/cancel')
 
 // 6. PATCH Chỉnh sửa (Admin)
 Router.route('/:id')
+  .get(protect, admin, bookingController.adminGetBookingDetails)
   .patch(
     protect,
     admin,
     bookingValidation.updateBooking, // <-- 2. THÊM ROUTE MỚI
     bookingController.updateBooking
   )
+  .delete(protect, admin, bookingController.adminDeleteBooking)
 
 // 7. PUT Đổi vé (User) <-- THÊM ROUTE MỚI
 Router.route('/:id/exchange')

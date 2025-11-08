@@ -38,7 +38,8 @@ const BOOKING_COLLECTION_SCHEMA = Joi.object({
   ),
   createdAt: Joi.date().timestamp('javascript').default(Date.now),
   updatedAt: Joi.date().timestamp('javascript').default(null),
-  cancelledAt: Joi.date().timestamp('javascript').default(null)
+  cancelledAt: Joi.date().timestamp('javascript').default(null),
+  _destroy: Joi.boolean().default(false)
 })
 
 const validateBeforeCreate = async (data) => {
@@ -69,7 +70,8 @@ const createNew = async (data) => {
 const findOneById = async (id) => {
   try {
     const result = await GET_DB().collection(BOOKING_COLLECTION_NAME).findOne({
-      _id: new ObjectId(id)
+      _id: new ObjectId(id),
+      _destroy: false
     })
     return result
   } catch (error) {
@@ -210,6 +212,64 @@ const update = async (id, data) => {
   }
 }
 
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách, lọc, phân trang
+ */
+const getAll = async (filters = {}, pagination = {}) => {
+  try {
+    const { userId, movieId, paymentStatus, bookingStatus, createdAtDate } = filters
+    const { page = 1, limit = 10, skip = 0 } = pagination
+
+    let query = { _destroy: false }
+
+    // Lọc theo các ID
+    if (userId) query.userId = new ObjectId(userId)
+    if (movieId) query.movieId = new ObjectId(movieId)
+
+    // Lọc theo trạng thái
+    if (paymentStatus) query.paymentStatus = paymentStatus
+    if (bookingStatus) query.bookingStatus = bookingStatus
+
+    // Lọc theo ngày TẠO vé (createdAt)
+    if (createdAtDate) {
+      const startDate = new Date(createdAtDate + 'T00:00:00+07:00') // Giờ VN
+      const endDate = new Date(createdAtDate + 'T23:59:59+07:00') // Giờ VN
+      query.createdAt = { $gte: startDate, $lte: endDate }
+    }
+
+    // 1. Truy vấn lấy tổng số document
+    const totalBookings = await GET_DB().collection(BOOKING_COLLECTION_NAME).countDocuments(query)
+
+    // 2. Truy vấn lấy data (có phân trang)
+    const bookings = await GET_DB().collection(BOOKING_COLLECTION_NAME)
+      .find(query)
+      .sort({ createdAt: -1 }) // Sắp xếp vé mới nhất lên đầu
+      .skip(skip)
+      .limit(limit)
+      .toArray()
+
+    return {
+      bookings,
+      pagination: {
+        totalItems: totalBookings,
+        totalPages: Math.ceil(totalBookings / limit),
+        currentPage: page,
+        limit
+      }
+    }
+  } catch (error) { throw new Error(error) }
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá mềm
+ */
+const softDelete = async (id) => {
+  return await GET_DB().collection(BOOKING_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true, updatedAt: new Date() } }
+  )
+}
+
 export const bookingModel = {
   BOOKING_COLLECTION_NAME,
   BOOKING_COLLECTION_SCHEMA,
@@ -220,5 +280,7 @@ export const bookingModel = {
   cancelBooking,
   checkSeatAvailability,
   getBookingStats,
-  update
+  update,
+  getAll,
+  softDelete
 }
