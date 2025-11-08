@@ -55,7 +55,7 @@ const resetPassword = async (req, res, next) => {
 }
 
 // HÀM MỚI
-const verifyEmail = async (req, res, next) => {
+const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params
     const result = await userService.verifyEmail(token)
@@ -99,6 +99,54 @@ const getAllUsers = async (req, res, next) => {
   }
 }
 
+/**
+ * HÀM MỚI: (Admin) POST /
+ */
+const adminCreateUser = async (req, res, next) => {
+  try {
+    const createdUser = await userService.adminCreateUser(req.body)
+    res.status(201).json(createdUser)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) GET /:id
+ */
+const adminGetUserById = async (req, res, next) => {
+  try {
+    const user = await userService.adminGetUserById(req.params.id)
+    res.status(200).json(user)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) PATCH /:id
+ */
+const adminUpdateUser = async (req, res, next) => {
+  try {
+    const updatedUser = await userService.adminUpdateUser(req.params.id, req.body)
+    res.status(200).json(updatedUser)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) DELETE /:id
+ */
+const adminDeleteUser = async (req, res, next) => {
+  try {
+    const result = await userService.adminDeleteUser(req.params.id)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const userController = {
   register,
   login,
@@ -108,5 +156,10 @@ export const userController = {
   resetPassword,
   updateProfile,
   deleteProfile,
-  getAllUsers
+  getAllUsers,
+  // Thêm 4 hàm mới
+  adminCreateUser,
+  adminGetUserById,
+  adminUpdateUser,
+  adminDeleteUser
 }
