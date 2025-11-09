@@ -33,16 +33,50 @@ const handleGetSubmissions = async (req, res, next) => {
 }
 
 /**
- * (Admin) Đánh dấu là đã đọc
+ * NÂNG CẤP: Đổi tên 'handleMarkAsRead' thành 'adminUpdateStatus'
  */
-const handleMarkAsRead = async (req, res, next) => {
+const adminUpdateStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body // Lấy status từ body (đã qua validation)
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ errors: 'Invalid Submission ID format' })
+    }
+
+    const result = await submissionService.adminUpdateStatus(id, status)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy chi tiết
+ */
+const adminGetSubmissionDetails = async (req, res, next) => {
   try {
     const { id } = req.params
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ errors: 'Invalid Submission ID format' })
     }
+    const result = await submissionService.adminGetSubmissionDetails(id)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
 
-    const result = await submissionService.markAsRead(id)
+/**
+ * HÀM MỚI: (Admin) Xoá
+ */
+const adminDeleteSubmission = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ errors: 'Invalid Submission ID format' })
+    }
+    const result = await submissionService.adminDeleteSubmission(id)
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -52,5 +86,7 @@ const handleMarkAsRead = async (req, res, next) => {
 export const submissionController = {
   handleCreateSubmission,
   handleGetSubmissions,
-  handleMarkAsRead
+  adminUpdateStatus,
+  adminGetSubmissionDetails,
+  adminDeleteSubmission
 }
