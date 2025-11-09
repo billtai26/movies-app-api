@@ -34,7 +34,74 @@ const markAsRead = async (req, res, next) => {
   }
 }
 
+/**
+ * HÀM MỚI: (Admin) GET /admin
+ */
+const adminGetNotifications = async (req, res, next) => {
+  try {
+    const result = await notificationService.adminGetNotifications(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) POST /admin
+ */
+const adminCreateNotification = async (req, res, next) => {
+  try {
+    const notification = await notificationService.adminCreateNotification(req.body)
+    res.status(201).json(notification)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) GET /admin/:id
+ */
+const adminGetNotificationDetails = async (req, res, next) => {
+  try {
+    const notification = await notificationService.adminGetNotificationDetails(req.params.id)
+    res.status(200).json(notification)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) PATCH /admin/:id
+ */
+const adminUpdateNotification = async (req, res, next) => {
+  try {
+    const notification = await notificationService.adminUpdateNotification(req.params.id, req.body)
+    res.status(200).json(notification)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) DELETE /admin/:id
+ */
+const adminDeleteNotification = async (req, res, next) => {
+  try {
+    const result = await notificationService.adminDeleteNotification(req.params.id)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const notificationController = {
+  // User
   getNotifications,
-  markAsRead
+  markAsRead,
+  // Admin
+  adminGetNotifications,
+  adminCreateNotification,
+  adminGetNotificationDetails,
+  adminUpdateNotification,
+  adminDeleteNotification
 }

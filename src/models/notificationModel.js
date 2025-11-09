@@ -38,7 +38,8 @@ const createNew = async (data) => {
 const findOneById = async (id) => {
   try {
     return await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).findOne({
-      _id: new ObjectId(id)
+      _id: new ObjectId(id),
+      _destroy: false
     })
   } catch (error) { throw new Error(error) }
 }
@@ -96,9 +97,79 @@ const markAsRead = async (notificationId, userId) => {
   } catch (error) { throw new Error(error) }
 }
 
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách, lọc, phân trang
+ */
+const adminGetAll = async (filters = {}, pagination = {}) => {
+  try {
+    const { userId, type, isRead, q } = filters
+    const { page = 1, limit = 10, skip = 0 } = pagination
+
+    let query = { _destroy: false }
+
+    // Lọc theo các trường
+    if (userId) query.userId = new ObjectId(userId)
+    if (type) query.type = type
+    if (isRead !== undefined) query.isRead = (isRead === 'true')
+
+    // Tìm kiếm (theo title hoặc message)
+    if (q) {
+      query.$or = [
+        { title: { $regex: new RegExp(q, 'i') } },
+        { message: { $regex: new RegExp(q, 'i') } }
+      ]
+    }
+    
+    const total = await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).countDocuments(query)
+    const notifications = await GET_DB().collection(NOTIFICATION_COLLECTION_NAME)
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray()
+    
+    return {
+      notifications,
+      pagination: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        limit
+      }
+    }
+  } catch (error) { throw new Error(error) }
+}
+
+/**
+ * HÀM MỚI: (Admin) Sửa thông báo
+ */
+const adminUpdate = async (id, data) => {
+  delete data._id
+  data.updatedAt = new Date()
+  
+  return await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).findOneAndUpdate(
+    { _id: new ObjectId(id), _destroy: false },
+    { $set: data },
+    { returnDocument: 'after' }
+  )
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá mềm
+ */
+const adminSoftDelete = async (id) => {
+  return await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true } }
+  )
+}
+
 export const notificationModel = {
   createNew,
   findOneById,
   findByUserId,
-  markAsRead
+  markAsRead,
+  adminGetAll, // Mới
+  adminUpdate, // Mới
+  adminSoftDelete // Mới
 }
