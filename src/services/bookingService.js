@@ -377,6 +377,43 @@ const adminDeleteBooking = async (bookingId) => {
   return { message: 'Booking soft deleted successfully' }
 }
 
+/**
+ * HÀM MỚI: (Admin) Thêm combo tại quầy
+ */
+const addCombosAtCounter = async (bookingId, newCombos) => {
+  // 1. Kiểm tra booking
+  const booking = await bookingModel.findOneById(bookingId)
+  if (!booking) {
+    throw new ApiError(404, 'Booking not found')
+  }
+  if (booking.bookingStatus === 'cancelled') {
+    throw new ApiError(400, 'Cannot add combos to a cancelled booking')
+  }
+
+  // 2. Tính toán tổng tiền được thêm vào (Giả sử 'price' là tổng giá)
+  // Nếu 'price' là đơn giá, bạn cần nhân với quantity
+  const addedAmount = newCombos.reduce((acc, combo) => {
+    // Giả định 'price' là TỔNG GIÁ của số lượng combo đó
+    return acc + combo.price
+    // Hoặc nếu 'price' là ĐƠN GIÁ:
+    // return acc + (combo.price * combo.quantity)
+  }, 0)
+
+  // 3. Gọi model để cập nhật (atomic update)
+  const updatedBooking = await bookingModel.addCombosAndUpdateAmount(
+    bookingId,
+    newCombos,
+    addedAmount
+  )
+
+  if (!updatedBooking) {
+    throw new ApiError(500, 'Failed to add combos to booking')
+  }
+
+  // (Logic nghiệp vụ: Giả định nhân viên đã nhận tiền mặt cho 'addedAmount')
+  return updatedBooking
+}
+
 export const bookingService = {
   getBookingHistory,
   getTicketDetails,
@@ -387,5 +424,6 @@ export const bookingService = {
   changeSeatsAtCounter,
   adminGetBookings,
   adminGetBookingDetails,
-  adminDeleteBooking
+  adminDeleteBooking,
+  addCombosAtCounter
 }

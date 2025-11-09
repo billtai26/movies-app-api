@@ -51,4 +51,13 @@ Router.route('/:id/change-seats-at-counter')
     bookingController.changeSeatsAtCounter // Controller mới
   )
 
+// 9. PATCH Thêm combo tại quầy (Admin/Nhân viên)
+Router.route('/:id/add-combos')
+  .patch(
+    protect,
+    admin,
+    bookingValidation.addCombosAtCounter, // Validation mới
+    bookingController.addCombosAtCounter // Controller mới
+  )
+
 export const bookingRoute = Router

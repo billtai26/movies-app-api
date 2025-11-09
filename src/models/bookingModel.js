@@ -270,6 +270,35 @@ const softDelete = async (id) => {
   )
 }
 
+/**
+ * HÀM MỚI: (Admin) Thêm combo và cập nhật tổng tiền
+ * (Sử dụng $push để thêm vào mảng và $inc để cộng dồn an toàn)
+ */
+const addCombosAndUpdateAmount = async (bookingId, newCombos, addedAmount) => {
+  try {
+    // Chuyển đổi comboId sang ObjectId trước khi push
+    const combosToPush = newCombos.map(c => ({
+      ...c,
+      comboId: new ObjectId(c.comboId)
+    }))
+
+    return await GET_DB().collection(BOOKING_COLLECTION_NAME).findOneAndUpdate(
+      { _id: new ObjectId(bookingId) },
+      {
+        $push: { combos: { $each: combosToPush } }, // Thêm các combo mới vào mảng
+        $inc: {
+          totalAmount: addedAmount, // Cộng dồn vào tổng tiền
+          originalAmount: addedAmount // Cộng dồn vào tiền gốc
+        },
+        $set: { updatedAt: new Date() }
+      },
+      { returnDocument: 'after' } // Trả về document sau khi update
+    )
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
 export const bookingModel = {
   BOOKING_COLLECTION_NAME,
   BOOKING_COLLECTION_SCHEMA,
@@ -282,5 +311,6 @@ export const bookingModel = {
   getBookingStats,
   update,
   getAll,
-  softDelete
+  softDelete,
+  addCombosAndUpdateAmount
 }
