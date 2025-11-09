@@ -72,9 +72,61 @@ const deleteReview = async (req, res, next) => {
   }
 }
 
+/**
+ * HÀM MỚI: (Admin) GET /admin/list
+ */
+const adminGetReviews = async (req, res, next) => {
+  try {
+    const result = await reviewService.adminGetReviews(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) GET /admin/:id
+ */
+const adminGetReviewDetails = async (req, res, next) => {
+  try {
+    const review = await reviewService.adminGetReviewDetails(req.params.id)
+    res.status(200).json(review)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * HÀM MỚI: (Admin) PATCH /admin/:id
+ */
+// const adminUpdateReview = async (req, res, next) => {
+//   try {
+//     const updatedReview = await reviewService.adminUpdateReview(req.params.id, req.body)
+//     res.status(200).json(updatedReview)
+//   } catch (error) {
+//     next(error)
+//   }
+// }
+
+/**
+ * HÀM MỚI: (Admin) DELETE /admin/:id
+ */
+const adminDeleteReview = async (req, res, next) => {
+  try {
+    const result = await reviewService.adminDeleteReview(req.params.id)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const reviewController = {
   createReview,
   getReviewsForMovie,
   updateReview,
-  deleteReview
+  deleteReview,
+  adminGetReviews,
+  adminGetReviewDetails,
+  // adminUpdateReview,
+  adminDeleteReview
 }

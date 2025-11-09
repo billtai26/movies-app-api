@@ -1,5 +1,6 @@
 import { reviewModel } from '~/models/reviewModel'
 import { movieModel } from '~/models/movieModel'
+import { ApiError } from '~/utils/ApiError'
 
 /**
  * (Hàm nội bộ) Dùng để cập nhật điểm trung bình của phim sau mỗi thay đổi
@@ -105,9 +106,58 @@ const deleteReview = async (reviewId, userId) => {
   return { message: 'Review deleted successfully' }
 }
 
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách (Lọc, Phân trang)
+ */
+const adminGetReviews = async (queryParams) => {
+  const { userId, movieId, q, page, limit } = queryParams
+
+  const filters = { userId, movieId, q }
+  const pageNum = parseInt(page) || 1
+  const limitNum = parseInt(limit) || 10
+  const skip = (pageNum - 1) * limitNum
+  const pagination = { page: pageNum, limit: limitNum, skip }
+
+  return await reviewModel.adminGetAll(filters, pagination)
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy chi tiết 1 review
+ */
+const adminGetReviewDetails = async (reviewId) => {
+  const review = await reviewModel.findOneById(reviewId)
+  if (!review) {
+    throw new ApiError(404, 'Review not found')
+  }
+  return review
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá 1 review (bỏ qua check userId)
+ */
+const adminDeleteReview = async (reviewId) => {
+  // 1. Tìm review (để lấy movieId)
+  const review = await reviewModel.findOneById(reviewId)
+  if (!review) {
+    throw new ApiError(404, 'Review not found')
+  }
+
+  // 2. Xoá mềm
+  await reviewModel.softDeleteOneById(reviewId)
+
+  // 3. Cập nhật lại điểm trung bình
+  _updateMovieRating(review.movieId.toString())
+
+  return { message: 'Review soft deleted by admin successfully' }
+}
+
 export const reviewService = {
   createReview,
   getReviewsForMovie,
   updateReview,
-  deleteReview
+  deleteReview,
+  adminGetReviews,
+  adminGetReviewDetails,
+  // adminUpdateReview,
+  adminDeleteReview
 }

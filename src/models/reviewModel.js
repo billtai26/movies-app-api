@@ -109,12 +109,52 @@ const calculateAverageRating = async (movieId) => {
   return result[0] || { averageRating: 0, reviewCount: 0 }
 }
 
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách, lọc, phân trang
+ */
+const adminGetAll = async (filters = {}, pagination = {}) => {
+  try {
+    const { userId, movieId, q } = filters
+    const { page = 1, limit = 10, skip = 0 } = pagination
+
+    let query = { _destroy: false }
+
+    // Lọc theo các ID
+    if (userId) query.userId = new ObjectId(userId)
+    if (movieId) query.movieId = new ObjectId(movieId)
+
+    // Tìm kiếm (theo nội dung comment)
+    if (q) {
+      query.comment = { $regex: new RegExp(q, 'i') }
+    }
+
+    const total = await GET_DB().collection(REVIEW_COLLECTION_NAME).countDocuments(query)
+    const reviews = await GET_DB().collection(REVIEW_COLLECTION_NAME)
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray()
+
+    return {
+      reviews,
+      pagination: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        limit
+      }
+    }
+  } catch (error) { throw new Error(error) }
+}
+
 export const reviewModel = {
   createNew,
   findOneById,
   findOneByUserAndMovie,
   getByMovieId,
   update,
-  softDeleteOneById, // <-- Đã đổi tên hàm
-  calculateAverageRating
+  softDeleteOneById,
+  calculateAverageRating,
+  adminGetAll
 }
