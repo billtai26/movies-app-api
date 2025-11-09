@@ -1,7 +1,8 @@
 import { notificationModel } from '~/models/notificationModel'
-import { userModel } from '~/models/userModel' // Giả sử bạn có userModel
-import { mailService } from '~/utils/mailService' // Giả sử bạn có mailService (nodemailer)
-import { getIO } from '~/server' // Import getIO từ server.js
+import { userModel } from '~/models/userModel'
+import { mailService } from '~/utils/mailService'
+import { getIO } from '~/server'
+import { ApiError } from '~/utils/ApiError'
 
 /**
  * Hàm trung tâm để tạo và gửi thông báo
@@ -14,37 +15,35 @@ import { getIO } from '~/server' // Import getIO từ server.js
  */
 const createNotification = async (userId, type, title, message, link = null, sendEmail = false) => {
   try {
-    // 1. Tạo bản ghi thông báo trong Database
-    const newNotificationResult = await notificationModel.createNew({
-      userId,
-      type,
-      title,
-      message,
-      link
-    })
+    // 1. Kiểm tra User có tồn tại không
+    const user = await userModel.findOneById(userId)
+    if (!user) {
+      throw new ApiError(404, `User not found with id: ${userId}`)
+    }
 
-    // Lấy lại thông báo đầy đủ vừa tạo
+    // 2. Tạo bản ghi
+    const newNotificationResult = await notificationModel.createNew({
+      userId, type, title, message, link
+    })
     const newNotification = await notificationModel.findOneById(newNotificationResult.insertedId)
 
-    // 2. Gửi thông báo Real-time qua Socket.io
+    // 3. Gửi Socket.io
     const io = getIO()
-    // Gửi sự kiện 'new_notification' đến "phòng" riêng của user đó
     io.to(userId.toString()).emit('new_notification', newNotification)
 
-    // 3. (Tùy chọn) Gửi qua Email
-    if (sendEmail) {
-      const user = await userModel.findOneById(userId)
-      if (user && user.email) {
-        // (Bạn có thể thêm 1 trường 'settings.receiveEmail' trong userModel để check)
-        const emailHtml = `<h1>${title}</h1><p>${message}</p>${link ? `<a href="${link}">Xem chi tiết</a>` : ''}`
-        await mailService.sendEmail(user.email, title, emailHtml)
-      }
+    // 4. Gửi Email (Nếu user còn tồn tại và yêu cầu)
+    if (sendEmail && user.email) {
+      const emailHtml = `<h1>${title}</h1><p>${message}</p>${link ? `<a href="${link}">Xem chi tiết</a>` : ''}`
+      await mailService.sendEmail(user.email, title, emailHtml)
     }
 
     return newNotification
   } catch (error) {
+    // Nếu lỗi là ApiError, ném ra
+    if (error instanceof ApiError) throw error
+    // Nếu là lỗi khác, ghi log nhưng không làm hỏng flow chính
+    // eslint-disable-next-line no-console
     console.error('Error creating notification:', error)
-    // không ném lỗi để không làm hỏng flow chính (ví dụ: lỡ thanh toán thành công)
   }
 }
 
@@ -68,8 +67,74 @@ const markNotificationAsRead = async (notificationId, userId) => {
   return notification
 }
 
+/**
+ * HÀM MỚI: (Admin) Tạo thông báo thủ công
+ */
+const adminCreateNotification = async (reqBody) => {
+  const { userId, type, title, message, link } = reqBody
+  // Gọi hàm createNotification lõi
+  // (true = có gửi email cho thông báo khuyến mãi/hệ thống)
+  return await createNotification(userId, type, title, message, link, true)
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách (Lọc, Phân trang)
+ */
+const adminGetNotifications = async (queryParams) => {
+  const { userId, type, isRead, q, page, limit } = queryParams
+
+  const filters = { userId, type, isRead: isRead, q }
+
+  const pageNum = parseInt(page) || 1
+  const limitNum = parseInt(limit) || 10
+  const skip = (pageNum - 1) * limitNum
+  const pagination = { page: pageNum, limit: limitNum, skip }
+
+  return await notificationModel.adminGetAll(filters, pagination)
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy chi tiết 1 thông báo
+ */
+const adminGetNotificationDetails = async (notificationId) => {
+  const notification = await notificationModel.findOneById(notificationId)
+  if (!notification) {
+    throw new ApiError(404, 'Notification not found')
+  }
+  return notification
+}
+
+/**
+ * HÀM MỚI: (Admin) Sửa 1 thông báo
+ */
+const adminUpdateNotification = async (notificationId, updateData) => {
+  const updatedNotification = await notificationModel.adminUpdate(notificationId, updateData)
+  if (!updatedNotification) {
+    throw new ApiError(404, 'Notification not found or update failed')
+  }
+  return updatedNotification
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá 1 thông báo
+ */
+const adminDeleteNotification = async (notificationId) => {
+  const notification = await notificationModel.findOneById(notificationId)
+  if (!notification) {
+    throw new ApiError(404, 'Notification not found')
+  }
+
+  await notificationModel.adminSoftDelete(notificationId)
+  return { message: 'Notification soft deleted successfully' }
+}
+
 export const notificationService = {
   createNotification,
   getNotificationsForUser,
-  markNotificationAsRead
+  markNotificationAsRead,
+  adminCreateNotification,
+  adminGetNotifications,
+  adminGetNotificationDetails,
+  adminUpdateNotification,
+  adminDeleteNotification
 }
