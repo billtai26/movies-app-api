@@ -111,7 +111,7 @@ const deleteReview = async (reviewId, userId) => {
  */
 const adminGetReviews = async (queryParams) => {
   const { userId, movieId, q, page, limit } = queryParams
-  
+
   const filters = { userId, movieId, q }
   const pageNum = parseInt(page) || 1
   const limitNum = parseInt(limit) || 10
