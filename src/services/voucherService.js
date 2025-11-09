@@ -1,4 +1,5 @@
 import { voucherModel } from '~/models/voucherModel'
+import { ApiError } from '~/utils/ApiError'
 
 /**
  * Áp dụng voucher và tính toán giảm giá
@@ -47,7 +48,88 @@ const getActiveVouchers = async () => {
   return await voucherModel.getActiveVouchers()
 }
 
+/**
+ * HÀM MỚI: (Admin) Tạo voucher
+ */
+const adminCreateVoucher = async (reqBody) => {
+  // 1. Check trùng code
+  const existingVoucher = await voucherModel.adminFindByCode(reqBody.code)
+  if (existingVoucher) {
+    throw new ApiError(400, 'Voucher code already exists')
+  }
+
+  // 2. Tạo mới
+  // (Đảm bảo logic: nếu là 'percent', maxDiscountAmount phải có)
+  if (reqBody.discountType === 'percent' && !reqBody.maxDiscountAmount) {
+    throw new ApiError(400, 'maxDiscountAmount is required for percent discount type')
+  }
+
+  const newVoucherResult = await voucherModel.createNew(reqBody)
+  return await voucherModel.findOneById(newVoucherResult.insertedId)
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy danh sách (Lọc, Phân trang)
+ */
+const adminGetVouchers = async (queryParams) => {
+  const { q, isActive, page, limit } = queryParams
+
+  const filters = { q, isActive: isActive }
+
+  const pageNum = parseInt(page) || 1
+  const limitNum = parseInt(limit) || 10
+  const skip = (pageNum - 1) * limitNum
+  const pagination = { page: pageNum, limit: limitNum, skip }
+
+  return await voucherModel.adminGetAll(filters, pagination)
+}
+
+/**
+ * HÀM MỚI: (Admin) Lấy chi tiết 1 voucher
+ */
+const adminGetVoucherDetails = async (voucherId) => {
+  const voucher = await voucherModel.findOneById(voucherId)
+  if (!voucher) {
+    throw new ApiError(404, 'Voucher not found')
+  }
+  return voucher
+}
+
+/**
+ * HÀM MỚI: (Admin) Sửa 1 voucher
+ */
+const adminUpdateVoucher = async (voucherId, updateData) => {
+  // (Không cho phép sửa code)
+  delete updateData.code
+
+  const updatedVoucher = await voucherModel.adminUpdate(voucherId, updateData)
+  if (!updatedVoucher) {
+    throw new ApiError(404, 'Voucher not found or update failed')
+  }
+  return updatedVoucher
+}
+
+/**
+ * HÀM MỚI: (Admin) Xoá 1 voucher
+ */
+const adminDeleteVoucher = async (voucherId) => {
+  const voucher = await voucherModel.findOneById(voucherId)
+  if (!voucher) {
+    throw new ApiError(404, 'Voucher not found')
+  }
+
+  await voucherModel.adminSoftDelete(voucherId)
+  return { message: 'Voucher soft deleted successfully' }
+}
+
 export const voucherService = {
+  // User
   applyVoucher,
-  getActiveVouchers
+  getActiveVouchers,
+  // Admin
+  adminCreateVoucher,
+  adminGetVouchers,
+  adminGetVoucherDetails,
+  adminUpdateVoucher,
+  adminDeleteVoucher
 }
