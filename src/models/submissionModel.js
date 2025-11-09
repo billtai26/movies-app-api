@@ -86,8 +86,30 @@ const updateStatus = async (id, newStatus) => {
   } catch (error) { throw new Error(error) }
 }
 
+/**
+ * HÀM MỚI: Lấy chi tiết (cho Admin)
+ */
+const findOneById = async (id) => {
+  return await GET_DB().collection(SUBMISSION_COLLECTION_NAME).findOne({
+    _id: new ObjectId(id),
+    _destroy: false
+  })
+}
+
+/**
+ * HÀM MỚI: Xoá mềm (cho Admin)
+ */
+const softDelete = async (id) => {
+  return await GET_DB().collection(SUBMISSION_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true, updatedAt: new Date() } }
+  )
+}
+
 export const submissionModel = {
   createNew,
   getAll,
-  updateStatus
+  updateStatus,
+  findOneById,
+  softDelete
 }

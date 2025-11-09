@@ -18,6 +18,24 @@ const createSubmission = async (req, res, next) => {
   }
 }
 
+/**
+ * HÀM MỚI: (Admin) Validation khi cập nhật status
+ */
+const adminUpdateStatus = async (req, res, next) => {
+  const correctCondition = Joi.object({
+    // Chỉ cho phép admin cập nhật status
+    status: Joi.string().valid('new', 'read', 'resolved').required()
+  })
+
+  try {
+    await correctCondition.validateAsync(req.body, { abortEarly: false })
+    next()
+  } catch (error) {
+    res.status(400).json({ errors: error.details.map(d => d.message) })
+  }
+}
+
 export const submissionValidation = {
-  createSubmission
+  createSubmission,
+  adminUpdateStatus
 }

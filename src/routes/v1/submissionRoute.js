@@ -16,12 +16,20 @@ Router.route('/')
 // --- API cho Admin (Protected) ---
 // GET /v1/submissions
 // (Admin xem danh sách, có thể lọc ?type=report&status=new)
-Router.route('/')
+Router.route('/admin')
   .get(protect, admin, submissionController.handleGetSubmissions)
 
-// PUT /v1/submissions/:id/read
-// (Admin đánh dấu đã đọc)
-Router.route('/:id/read')
-  .put(protect, admin, submissionController.handleMarkAsRead)
+// GET /v1/submissions/admin/:id (Xem chi tiết)
+// PATCH /v1/submissions/admin/:id (Sửa status)
+// DELETE /v1/submissions/admin/:id (Xoá mềm)
+Router.route('/admin/:id')
+  .get(protect, admin, submissionController.adminGetSubmissionDetails)
+  .patch(
+    protect,
+    admin,
+    submissionValidation.adminUpdateStatus,
+    submissionController.adminUpdateStatus
+  )
+  .delete(protect, admin, submissionController.adminDeleteSubmission)
 
 export const submissionRoute = Router
