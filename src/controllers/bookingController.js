@@ -255,5 +255,24 @@ export const bookingController = {
     } catch (error) {
       next(error)
     }
+  },
+
+  /**
+   * HÀM MỚI: (Admin) PATCH /:id/add-combos
+   */
+  addCombosAtCounter: async (req, res, next) => {
+    try {
+      const { id: bookingId } = req.params
+      const { newCombos } = req.body
+
+      if (!ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ errors: 'Invalid Booking ID format' })
+      }
+
+      const result = await bookingService.addCombosAtCounter(bookingId, newCombos)
+      res.status(200).json(result)
+    } catch (error) {
+      next(error)
+    }
   }
 }

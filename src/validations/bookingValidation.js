@@ -84,8 +84,31 @@ const changeSeatsAtCounter = async (req, res, next) => {
   }
 }
 
+/**
+ * HÀM MỚI: Validation cho Admin thêm combo tại quầy
+ */
+const addCombosAtCounter = async (req, res, next) => {
+  const comboSchema = Joi.object({
+    comboId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+    quantity: Joi.number().integer().min(1).required(),
+    price: Joi.number().required() // Giá của 1 combo (đã nhân với quantity)
+  })
+
+  const correctCondition = Joi.object({
+    newCombos: Joi.array().items(comboSchema).required().min(1)
+  })
+
+  try {
+    await correctCondition.validateAsync(req.body, { abortEarly: false })
+    next()
+  } catch (error) {
+    res.status(400).json({ errors: error.details.map(d => d.message) })
+  }
+}
+
 export const bookingValidation = {
   updateBooking,
   exchangeTicket,
-  changeSeatsAtCounter
+  changeSeatsAtCounter,
+  addCombosAtCounter
 }
