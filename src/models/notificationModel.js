@@ -119,7 +119,7 @@ const adminGetAll = async (filters = {}, pagination = {}) => {
         { message: { $regex: new RegExp(q, 'i') } }
       ]
     }
-    
+
     const total = await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).countDocuments(query)
     const notifications = await GET_DB().collection(NOTIFICATION_COLLECTION_NAME)
       .find(query)
@@ -127,7 +127,7 @@ const adminGetAll = async (filters = {}, pagination = {}) => {
       .skip(skip)
       .limit(limit)
       .toArray()
-    
+
     return {
       notifications,
       pagination: {
@@ -146,7 +146,7 @@ const adminGetAll = async (filters = {}, pagination = {}) => {
 const adminUpdate = async (id, data) => {
   delete data._id
   data.updatedAt = new Date()
-  
+
   return await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).findOneAndUpdate(
     { _id: new ObjectId(id), _destroy: false },
     { $set: data },

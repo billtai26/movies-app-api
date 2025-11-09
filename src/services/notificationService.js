@@ -42,6 +42,7 @@ const createNotification = async (userId, type, title, message, link = null, sen
     // Nếu lỗi là ApiError, ném ra
     if (error instanceof ApiError) throw error
     // Nếu là lỗi khác, ghi log nhưng không làm hỏng flow chính
+    // eslint-disable-next-line no-console
     console.error('Error creating notification:', error)
   }
 }
