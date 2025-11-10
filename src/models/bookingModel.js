@@ -36,6 +36,7 @@ const BOOKING_COLLECTION_SCHEMA = Joi.object({
       price: Joi.number().required()
     })
   ),
+  isUsed: Joi.boolean().default(false),
   createdAt: Joi.date().timestamp('javascript').default(Date.now),
   updatedAt: Joi.date().timestamp('javascript').default(null),
   cancelledAt: Joi.date().timestamp('javascript').default(null),
@@ -299,6 +300,32 @@ const addCombosAndUpdateAmount = async (bookingId, newCombos, addedAmount) => {
   }
 }
 
+/**
+ * HÀM MỚI: (Admin/Staff) Tìm và đánh dấu vé đã sử dụng
+ * (Chỉ update nếu vé đã thanh toán VÀ chưa được sử dụng)
+ */
+const markAsUsed = async (id) => {
+  try {
+    return await GET_DB().collection(BOOKING_COLLECTION_NAME).findOneAndUpdate(
+      {
+        _id: new ObjectId(id),
+        paymentStatus: 'completed', // ĐIỀU KIỆN 1: Phải hoàn tất thanh toán
+        isUsed: false, // ĐIỀU KIỆN 2: Phải chưa được dùng
+        _destroy: false
+      },
+      {
+        $set: {
+          isUsed: true,
+          updatedAt: new Date()
+        }
+      },
+      { returnDocument: 'after' } // Trả về document sau khi update
+    )
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
 export const bookingModel = {
   BOOKING_COLLECTION_NAME,
   BOOKING_COLLECTION_SCHEMA,
@@ -312,5 +339,6 @@ export const bookingModel = {
   update,
   getAll,
   softDelete,
-  addCombosAndUpdateAmount
+  addCombosAndUpdateAmount,
+  markAsUsed
 }

@@ -46,7 +46,7 @@ const verifyAndUseTicket = async (bookingId) => {
   if (!updatedBooking) {
     const existingBooking = await bookingModel.findOneById(bookingId)
     if (!existingBooking) throw new Error('Booking not found.')
-    if (existingBooking.status !== 'completed') throw new Error('Booking is not completed.')
+    if (existingBooking.paymentStatus !== 'completed') throw new Error('Booking is not completed.')
     if (existingBooking.isUsed) throw new Error('Ticket has already been used.')
     throw new Error('Failed to mark ticket as used.')
   }
