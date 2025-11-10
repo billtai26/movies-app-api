@@ -60,4 +60,12 @@ Router.route('/:id/add-combos')
     bookingController.addCombosAtCounter // Controller mới
   )
 
+// 10. PUT Xác minh vé (Quét QR) (Admin/Nhân viên)
+Router.route('/:id/verify')
+  .put(
+    protect,
+    admin,
+    bookingController.verifyTicketAtCounter // <-- Hàm controller đã có sẵn
+  )
+
 export const bookingRoute = Router
