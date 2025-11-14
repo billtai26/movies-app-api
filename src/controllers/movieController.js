@@ -1,4 +1,6 @@
 import { movieService } from '~/services/movieService'
+import { uploadService } from '~/services/uploadService' // <-- IMPORT UPLOAD SERVICE
+import { ApiError } from '~/utils/ApiError'
 
 const createNew = async (req, res, next) => {
   try {
@@ -49,10 +51,36 @@ const deleteMovie = async (req, res, next) => {
   }
 }
 
+const updateMoviePoster = async (req, res, next) => {
+  try {
+    // 1. Kiểm tra file
+    if (!req.file) {
+      throw new ApiError(400, 'No poster file provided')
+    }
+
+    // 2. Lấy ID phim từ URL
+    const movieId = req.params.id
+
+    // 3. Upload lên Cloudinary
+    const { url } = await uploadService.uploadFileToCloudinary(
+      req.file.buffer,
+      'posters' // <-- Tên thư mục trên Cloudinary
+    )
+
+    // 4. Lưu URL mới vào movie (Tái sử dụng hàm updateMovie)
+    const updatedMovie = await movieService.updateMovie(movieId, { posterUrl: url })
+
+    res.status(200).json(updatedMovie)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const movieController = {
   createNew,
   getMovies,
   getMovieDetails,
   updateMovie,
-  deleteMovie
+  deleteMovie,
+  updateMoviePoster
 }
