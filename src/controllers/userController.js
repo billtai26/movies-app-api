@@ -1,4 +1,6 @@
 import { userService } from '~/services/userService'
+import { uploadService } from '~/services/uploadService'
+import { ApiError } from '~/utils/ApiError'
 
 // Sửa lại hàm register để nhận thông báo mới
 const register = async (req, res, next) => {
@@ -147,6 +149,33 @@ const adminDeleteUser = async (req, res, next) => {
   }
 }
 
+const updateAvatar = async (req, res, next) => {
+  try {
+    // 1. Kiểm tra file (multer đã lưu file vào req.file)
+    if (!req.file) {
+      throw new ApiError(400, 'No avatar file provided')
+    }
+
+    // 2. Lấy user ID từ token
+    const userId = req.user._id
+
+    // 3. Upload file buffer lên Cloudinary
+    // req.file.buffer là nơi multer lưu file khi dùng memoryStorage
+    const { url } = await uploadService.uploadFileToCloudinary(
+      req.file.buffer,
+      'avatars' // <-- Tên thư mục trên Cloudinary
+    )
+
+    // 4. Lưu URL mới vào user
+    // (Tái sử dụng hàm 'updateProfile' của bạn)
+    const updatedUser = await userService.updateProfile(userId, { avatarUrl: url })
+
+    res.status(200).json(updatedUser)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const userController = {
   register,
   login,
@@ -161,5 +190,6 @@ export const userController = {
   adminCreateUser,
   adminGetUserById,
   adminUpdateUser,
-  adminDeleteUser
+  adminDeleteUser,
+  updateAvatar
 }

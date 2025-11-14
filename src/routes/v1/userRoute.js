@@ -6,6 +6,7 @@ import { admin } from '~/middlewares/adminMiddleware'
 import passport from 'passport'
 import jwt from 'jsonwebtoken'
 import { env } from '~/config/environment'
+import { upload } from '~/middlewares/multerUploadMiddleware'
 
 const Router = express.Router()
 
@@ -38,6 +39,13 @@ Router.route('/register')
 
 Router.route('/login')
   .post(userValidation.login, userController.login)
+
+Router.route('/profile/avatar')
+  .patch(
+    protect,
+    upload.single('avatar'), // <-- SỬ DỤNG MULTER
+    userController.updateAvatar // <-- Hàm controller mới
+  )
 
 // ROUTE MỚI ĐỂ XÁC THỰC EMAIL
 Router.route('/verify-email/:token')
