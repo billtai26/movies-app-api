@@ -1,7 +1,7 @@
 import { showtimeModel } from '~/models/showtimeModel'
-import { cinemaHallModel } from '~/models/cinemaHallModel' // <-- Giả định bạn đã có
-import { movieModel } from '~/models/movieModel' // <-- Giả định bạn đã có
-import { ObjectId } from 'mongodb'
+import { cinemaHallModel } from '~/models/cinemaHallModel' // <-- IMPORT THÊM
+import { movieModel } from '~/models/movieModel'
+import { ObjectId } from 'mongodb' // <-- IMPORT THÊM
 
 /**
  * HÀM MỚI: Thêm lịch chiếu (Admin)
@@ -83,19 +83,52 @@ const deleteShowtime = async (showtimeId) => {
 
 /**
  * HÀM MỚI: Lấy danh sách (Lọc, Phân trang)
+ * * ====================================================================
+ * ===== ĐÂY LÀ HÀM ĐƯỢC CHỈNH SỬA ĐỂ LỌC THEO CỤM RẠP (cinemaId) =====
+ * ====================================================================
  */
 const getShowtimes = async (queryParams) => {
   try {
-    const { movieId, theaterId, date, page, limit } = queryParams
-    const filters = { movieId, theaterId, date }
+    // Lấy thêm cinemaId từ query params
+    const { movieId, theaterId, cinemaId, date, page, limit } = queryParams
+
+    let theaterIdsToFilter = null // Biến này sẽ chứa mảng các ObjectId của phòng chiếu
+
+    // ---- LOGIC MỚI ĐỂ LỌC THEO CỤM RẠP (CINEMA) ----
+    // Ưu tiên 1: Lọc theo Cụm rạp (cinemaId)
+    if (cinemaId) {
+      // 1. Tìm tất cả các phòng chiếu (halls) thuộc cụm rạp này
+      // (Hàm findHallsByCinema đã có sẵn trong cinemaHallModel)
+      const halls = await cinemaHallModel.findHallsByCinema(cinemaId)
+
+      // 2. Lấy ID của các phòng chiếu đó (dưới dạng mảng ObjectId)
+      theaterIdsToFilter = halls.map(hall => hall._id)
+
+      // 3. Nếu cụm rạp này không có phòng chiếu nào, ta trả về mảng rỗng
+      if (theaterIdsToFilter.length === 0) {
+        return {
+          showtimes: [],
+          pagination: { totalShowtimes: 0, totalPages: 0, currentPage: parseInt(page) || 1, limit: parseInt(limit) || 10 }
+        }
+      }
+    }
+    // Ưu tiên 2: Lọc theo Phòng chiếu (theaterId) - chỉ chạy nếu không có cinemaId
+    else if (theaterId) {
+      // Gói nó vào một mảng để Model xử lý đồng nhất
+      theaterIdsToFilter = [new ObjectId(theaterId)]
+    }
+    // ---- KẾT THÚC LOGIC MỚI ----
+
+
+    // Sửa filters: Bỏ theaterId, thay bằng theaterIds (là mảng các ObjectId)
+    const filters = { movieId, date, theaterIds: theaterIdsToFilter }
 
     const pageNum = parseInt(page) || 1
     const limitNum = parseInt(limit) || 10
     const skip = (pageNum - 1) * limitNum
     const pagination = { page: pageNum, limit: limitNum, skip }
 
-    // SỬA LẠI DÒNG NÀY:
-    // Bọc 'filters' và 'pagination' trong một dấu {}
+    // Gửi filters và pagination đã cập nhật xuống Model
     return await showtimeModel.getAll({ filters, pagination })
 
   } catch (error) { throw new Error(error) }

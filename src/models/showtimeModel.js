@@ -46,15 +46,28 @@ const findOneById = async (id) => {
   })
 }
 
+/**
+ * ====================================================================
+ * ===== ĐÂY LÀ HÀM ĐƯỢC CHỈNH SỬA ĐỂ LỌC THEO MẢNG ID PHÒNG CHIẾU =====
+ * ====================================================================
+ */
 const getAll = async ({ filters = {}, pagination = {} }) => {
   try {
-    const { movieId, theaterId, date } = filters
+    // 1. Lấy ra theaterIds (mảng) thay vì theaterId (string)
+    const { movieId, theaterIds, date } = filters
     const { page = 1, limit = 10, skip = 0 } = pagination
 
     let query = { _destroy: false }
 
     if (movieId) query.movieId = new ObjectId(movieId)
-    if (theaterId) query.theaterId = new ObjectId(theaterId)
+
+    // ---- LOGIC MỚI ĐỂ LỌC THEO MẢNG ID ----
+    // Nếu service gửi lên một mảng các ID phòng chiếu (theaterIds)
+    if (theaterIds && theaterIds.length > 0) {
+      // Dùng $in để lọc tất cả suất chiếu có theaterId NẰM TRONG mảng này
+      query.theaterId = { $in: theaterIds }
+    }
+    // ---- KẾT THÚC LOGIC MỚI ----
 
     // Lọc theo ngày (Rất quan trọng)
     if (date) {
