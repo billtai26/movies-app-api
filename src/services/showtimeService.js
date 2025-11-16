@@ -1,24 +1,35 @@
 import { showtimeModel } from '~/models/showtimeModel'
-import { cinemaHallModel } from '~/models/cinemaHallModel' // <-- IMPORT THÊM
+import { cinemaHallModel } from '~/models/cinemaHallModel' // <-- Giữ nguyên import này
 import { movieModel } from '~/models/movieModel'
-import { ObjectId } from 'mongodb' // <-- IMPORT THÊM
+import { ObjectId } from 'mongodb'
 
 /**
  * HÀM MỚI: Thêm lịch chiếu (Admin)
+ * * ====================================================================
+ * ===== ĐÂY LÀ HÀM ĐƯỢC CHỈNH SỬA ĐỂ NHẬN VÀ LƯU cinemaId =====
+ * ====================================================================
  */
 const createNew = async (reqBody) => {
   try {
-    const { movieId, theaterId, startTime, basePrice, vipPrice } = reqBody
+    // 1. Lấy cinemaId, movieId, theaterId... từ body
+    const { cinemaId, movieId, theaterId, startTime, basePrice, vipPrice } = reqBody
 
-    // 1. Lấy thông tin phòng chiếu (để copy mảng ghế)
+    // 2. Lấy thông tin phòng chiếu (hall)
     const hall = await cinemaHallModel.findOneById(theaterId)
-    if (!hall) throw new Error('Cinema hall not found')
+    if (!hall) throw new Error('Cinema hall (theater) not found')
 
-    // 2. Lấy thông tin phim (để kiểm tra)
+    // 3. Lấy thông tin phim
     const movie = await movieModel.findOneById(movieId)
     if (!movie) throw new Error('Movie not found')
 
-    // 3. Logic "Biến đổi" ghế phòng chiếu -> ghế suất chiếu
+    // 4. --- LOGIC VALIDATION MỚI ---
+    // Kiểm tra xem phòng chiếu (hall) có thuộc cụm rạp (cinema) không
+    if (hall.cinemaId.toString() !== cinemaId) {
+      throw new Error('This cinema hall does not belong to the specified cinema.')
+    }
+    // -----------------------------
+
+    // 5. Logic "Biến đổi" ghế (giữ nguyên)
     const showtimeSeats = hall.seats.map(seat => {
       let price = basePrice
       if (seat.seatType === 'vip') price = vipPrice
@@ -33,10 +44,13 @@ const createNew = async (reqBody) => {
       }
     })
 
-    // 4. Tạo object lịch chiếu mới
+    // 6. Tạo object lịch chiếu mới (bao gồm cả cinemaId)
     const newShowtimeData = {
-      movieId: movieId, // <-- Sửa: Gửi string
-      theaterId: theaterId, // <-- Sửa: Gửi string
+      // --- THÊM DÒNG NÀY ---
+      cinemaId: cinemaId,
+      // --------------------
+      movieId: movieId,
+      theaterId: theaterId,
       startTime: new Date(startTime),
       seats: showtimeSeats,
       _destroy: false
@@ -83,9 +97,7 @@ const deleteShowtime = async (showtimeId) => {
 
 /**
  * HÀM MỚI: Lấy danh sách (Lọc, Phân trang)
- * * ====================================================================
- * ===== ĐÂY LÀ HÀM ĐƯỢC CHỈNH SỬA ĐỂ LỌC THEO CỤM RẠP (cinemaId) =====
- * ====================================================================
+ * (Hàm này đã được sửa ở bước trước để lọc theo cinemaId)
  */
 const getShowtimes = async (queryParams) => {
   try {
@@ -187,8 +199,6 @@ const getShowtimeDetails = async (showtimeId) => {
   return showtime
 }
 
-// DÒNG QUAN TRỌNG NHẤT LÀ ĐÂY
-// Hãy chắc chắn rằng bạn export một đối tượng có tên là showtimeService
 export const showtimeService = {
   createNew,
   updateShowtime,

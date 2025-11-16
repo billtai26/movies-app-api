@@ -4,6 +4,7 @@ import { GET_DB } from '~/config/mongodb'
 
 const SHOWTIME_COLLECTION_NAME = 'showtimes'
 const SHOWTIME_COLLECTION_SCHEMA = Joi.object({
+  cinemaId: Joi.string().required(),
   movieId: Joi.string().required(), // Sẽ convert sang ObjectId
   theaterId: Joi.string().required(), // Sẽ convert sang ObjectId
   startTime: Joi.date().required(),
@@ -30,6 +31,7 @@ const createNew = async (data) => {
   // 2. Tạo object để insert, convert ID tại đây
   const dataToInsert = {
     ...validData,
+    cinemaId: new ObjectId(validData.cinemaId),
     movieId: new ObjectId(validData.movieId),
     theaterId: new ObjectId(validData.theaterId)
     // startTime đã là Date Object từ service, nên Joi(Joi.date()) vẫn chấp nhận
@@ -168,7 +170,7 @@ const rollbackSeatHold = async (showtimeId, seatNumbers, userId) => {
   const update = {
     $set: {
       'seats.$[elem].status': 'available',
-      'seats.$[elem].heldBy': null,
+      'seats.$[Mym_elem].heldBy': null,
       'seats.$[elem].heldUntil': null
     }
   }

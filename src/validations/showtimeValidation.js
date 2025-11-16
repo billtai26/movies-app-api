@@ -7,6 +7,9 @@ import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants' // (G
  */
 const createNew = async (req, res, next) => {
   const showtimeSchema = Joi.object({
+    // --- THÊM DÒNG NÀY ---
+    cinemaId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+    // --------------------
     movieId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
     theaterId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
     startTime: Joi.date().iso().required(), // Yêu cầu định dạng ISO (vd: "2025-11-10T09:00:00Z")
