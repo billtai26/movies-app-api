@@ -130,10 +130,31 @@ const forgotPassword = async (email) => {
   // TODO: TÍCH HỢP GỬI EMAIL THẬT Ở ĐÂY
   // Gửi email cho người dùng chứa `resetToken` (token GỐC).
   // Bạn có thể dùng các thư viện như Nodemailer để làm việc này.
-  const resetUrl = `http://your-frontend-domain.com/reset-password/${resetToken}`
-  console.log('!!! SIMULATING EMAIL SENDING !!!')
-  console.log(`Reset Password URL: ${resetUrl}`)
-  console.log('!!! END SIMULATION !!!')
+  // const resetUrl = `http://your-frontend-domain.com/reset-password/${resetToken}`
+  // console.log('!!! SIMULATING EMAIL SENDING !!!')
+  // console.log(`Reset Password URL: ${resetUrl}`)
+  // console.log('!!! END SIMULATION !!!')
+
+  // Code mới (Sử dụng mailService):
+  const resetUrl = `http://localhost:5173/reset-password/${resetToken}` // (Thay bằng link frontend của bạn)
+
+  const emailHtml = `
+    <div>
+      <h1>Yêu cầu đặt lại mật khẩu</h1>
+      <p>Bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+      <p>Vui lòng nhấp vào liên kết bên dưới để đặt lại mật khẩu:</p>
+      <a href="${resetUrl}" target="_blank">Đặt lại mật khẩu</a>
+      <p>Lưu ý: Liên kết này sẽ hết hạn sau 15 phút.</p>
+      <p>Nếu bạn không yêu cầu điều này, vui lòng bỏ qua email này.</p>
+    </div>
+  `
+
+  // Gọi service để gửi email
+  await mailService.sendEmail(
+    user.email,
+    'Yêu cầu đặt lại mật khẩu Movies App',
+    emailHtml
+  )
 
   return { message: 'An e-mail has been sent to you with further instructions.' }
 }
