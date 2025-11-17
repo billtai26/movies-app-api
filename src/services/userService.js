@@ -136,7 +136,7 @@ const forgotPassword = async (email) => {
   // console.log('!!! END SIMULATION !!!')
 
   // Code mới (Sử dụng mailService):
-  const resetUrl = `http://localhost:5173/reset-password/${resetToken}` // (Thay bằng link frontend của bạn)
+  const resetUrl = `http://localhost:5173/auth/reset-password/${resetToken}` // (Thay bằng link frontend của bạn)
 
   const emailHtml = `
     <div>
