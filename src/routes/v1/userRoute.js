@@ -10,10 +10,64 @@ import { upload } from '~/middlewares/multerUploadMiddleware'
 
 const Router = express.Router()
 
-// HÀM MỚI CHO ADMIN: LẤY DANH SÁCH USER (có lọc, tìm kiếm, phân trang)
+// --- CÁC ROUTE CỤ THỂ (ĐẶT LÊN TRÊN CÙNG) ---
+
+Router.route('/register')
+  .post(userValidation.register, userController.register)
+
+Router.route('/login')
+  .post(userValidation.login, userController.login)
+
+Router.route('/verify-email/:token')
+  .get(userController.verifyEmail)
+
+Router.route('/forgot-password')
+  .post(userValidation.forgotPassword, userController.forgotPassword)
+
+Router.route('/reset-password/:resetToken')
+  .put(userValidation.resetPassword, userController.resetPassword)
+
+Router.route('/profile/avatar')
+  .patch(
+    protect,
+    upload.single('avatar'),
+    userController.updateAvatar
+  )
+
+Router.route('/profile') // Route này phải nằm trên /:id
+  .get(protect, userController.getUserProfile)
+  .put(protect, userValidation.updateProfile, userController.updateProfile)
+  .delete(protect, userController.deleteProfile)
+
+// --- ROUTE GOOGLE AUTH ---
+Router.route('/auth/google')
+  .get(passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false
+  }))
+
+Router.route('/auth/google/callback')
+  .get(
+    passport.authenticate('google', { session: false, failureRedirect: '/login-failed' }),
+    (req, res) => {
+      const token = jwt.sign(
+        { userId: req.user._id },
+        env.JWT_SECRET,
+        { expiresIn: '1d' }
+      )
+      res.status(200).json({
+        message: 'Google login successful',
+        token: token,
+        user: req.user
+      })
+    }
+  )
+
+// --- CÁC ROUTE QUẢN TRỊ/ĐỘNG (ĐẶT XUỐNG DƯỚI CÙNG) ---
+
+// Lấy danh sách user (Admin)
 Router.route('/')
   .get(protect, admin, userController.getAllUsers)
-  // POST /v1/users (Mới - Admin tạo user)
   .post(
     protect,
     admin,
@@ -21,9 +75,8 @@ Router.route('/')
     userController.adminCreateUser
   )
 
-// GET /v1/users/:id (Mới - Admin xem chi tiết)
-// PATCH /v1/users/:id (Mới - Admin sửa)
-// DELETE /v1/users/:id (Mới - Admin xoá)
+// Route /:id LÀ NGUYÊN NHÂN GÂY LỖI NẾU ĐẶT Ở TRÊN
+// Nó sẽ bắt tất cả request có dạng /something nếu 'something' chưa được định nghĩa bên trên
 Router.route('/:id')
   .get(protect, admin, userController.adminGetUserById)
   .patch(
@@ -33,68 +86,5 @@ Router.route('/:id')
     userController.adminUpdateUser
   )
   .delete(protect, admin, userController.adminDeleteUser)
-
-Router.route('/register')
-  .post(userValidation.register, userController.register)
-
-Router.route('/login')
-  .post(userValidation.login, userController.login)
-
-Router.route('/profile/avatar')
-  .patch(
-    protect,
-    upload.single('avatar'), // <-- SỬ DỤNG MULTER
-    userController.updateAvatar // <-- Hàm controller mới
-  )
-
-// ROUTE MỚI ĐỂ XÁC THỰC EMAIL
-Router.route('/verify-email/:token')
-  .get(userController.verifyEmail) // Dùng GET vì người dùng chỉ cần nhấp vào link
-
-Router.route('/profile')
-  .get(protect, userController.getUserProfile)
-  .put(protect, userValidation.updateProfile, userController.updateProfile)
-  .delete(protect, userController.deleteProfile)
-
-// ROUTE MỚI
-Router.route('/forgot-password')
-  .post(userValidation.forgotPassword, userController.forgotPassword)
-
-// ROUTE MỚI
-Router.route('/reset-password/:resetToken')
-  .put(userValidation.resetPassword, userController.resetPassword) // Dùng PUT vì ta đang cập nhật resource
-
-
-// ROUTE BẮT ĐẦU QUÁ TRÌNH OAUTH
-Router.route('/auth/google')
-  .get(passport.authenticate('google', {
-    scope: ['profile', 'email'], // Yêu cầu lấy thông tin profile và email
-    session: false
-  }))
-
-// ROUTE CALLBACK KHI GOOGLE TRẢ VỀ
-Router.route('/auth/google/callback')
-  .get(
-    passport.authenticate('google', { session: false, failureRedirect: '/login-failed' }),
-    (req, res) => {
-      // Hàm này chỉ chạy khi passport xác thực thành công
-      // req.user đã được gán bởi passport
-
-      // 1. Tạo JWT token giống như khi login
-      const token = jwt.sign(
-        { userId: req.user._id },
-        env.JWT_SECRET,
-        { expiresIn: '1d' }
-      )
-
-      // 2. Trả về token cho client
-      // (Trong thực tế, bạn sẽ redirect về frontend với token)
-      res.status(200).json({
-        message: 'Google login successful',
-        token: token,
-        user: req.user
-      })
-    }
-  )
 
 export const userRoute = Router

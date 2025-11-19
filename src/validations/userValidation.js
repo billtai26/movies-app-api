@@ -58,8 +58,10 @@ const resetPassword = async (req, res, next) => {
 // HÀM MỚI
 const updateProfile = async (req, res, next) => {
   const correctCondition = Joi.object({
-    username: Joi.string().min(3).max(50).trim().strict()
+    username: Joi.string().min(3).max(50).trim().strict(),
     // Không cho phép sửa email, password, role... qua API này
+    phone: Joi.string().pattern(/^[0-9]{10,11}$/).trim().strict(),
+    dob: Joi.date().iso(),
   })
   try {
     await correctCondition.validateAsync(req.body, { abortEarly: false })
