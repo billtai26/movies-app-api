@@ -13,6 +13,9 @@ const USER_COLLECTION_SCHEMA = Joi.object({
   password: Joi.string().allow(null).default(null).min(6).trim().strict(),
   role: Joi.string().valid('user', 'admin').default('user'), //
 
+  phone: Joi.string().pattern(/^[0-9]{10,11}$/).default(null).trim().strict(),
+  dob: Joi.date().iso().default(null),
+
   // Thêm các trường cho xác thực email
   isVerified: Joi.boolean().default(false),
   emailVerificationToken: Joi.string().default(null),
