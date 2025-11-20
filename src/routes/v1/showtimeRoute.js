@@ -28,4 +28,8 @@ Router.route('/:id')
   .patch(protect, admin, showtimeValidation.update, showtimeController.updateShowtime)
   .delete(protect, admin, showtimeController.deleteShowtime)
 
+// Thêm route mới để nhả ghế
+Router.route('/:id/release-seats')
+  .post(protect, showtimeController.releaseSeats)
+
 export const showtimeRoute = Router

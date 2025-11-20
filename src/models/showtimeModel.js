@@ -213,6 +213,24 @@ const releaseBookedSeats = async (showtimeId, seatNumbers) => {
   return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateMany(filter, update, options)
 }
 
+// Thêm hoặc đảm bảo hàm này có export
+const releaseSeats = async (showtimeId, seatNumbers, userId) => {
+  const filter = { _id: new ObjectId(showtimeId) }
+  const update = {
+    $set: {
+      'seats.$[elem].status': 'available',
+      'seats.$[elem].heldBy': null,
+      'seats.$[elem].heldUntil': null
+    }
+  }
+  const options = {
+    arrayFilters: [
+      { 'elem.seatNumber': { $in: seatNumbers }, 'elem.heldBy': userId, 'elem.status': 'held' }
+    ]
+  }
+  return await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateOne(filter, update, options)
+}
+
 export const showtimeModel = {
   createNew,
   findOneById,
@@ -221,5 +239,6 @@ export const showtimeModel = {
   softDelete,
   updateSeatsStatus,
   rollbackSeatHold,
-  releaseBookedSeats
+  releaseBookedSeats,
+  releaseSeats
 }

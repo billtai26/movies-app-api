@@ -147,7 +147,7 @@ const getShowtimes = async (queryParams) => {
 }
 
 const holdSeats = async (userId, showtimeId, seatNumbers) => {
-  const HOLD_DURATION_MINUTES = 10 // Thời gian giữ ghế
+  const HOLD_DURATION_MINUTES = 7 // Thời gian giữ ghế
   const heldUntil = new Date(Date.now() + HOLD_DURATION_MINUTES * 60 * 1000)
 
   // Kiểm tra tính available của tất cả ghế trước
@@ -199,11 +199,18 @@ const getShowtimeDetails = async (showtimeId) => {
   return showtime
 }
 
+const releaseSeats = async (userId, showtimeId, seatNumbers) => {
+  // Gọi model để nhả ghế
+  const result = await showtimeModel.releaseSeats(showtimeId, seatNumbers, userId)
+  return result
+}
+
 export const showtimeService = {
   createNew,
   updateShowtime,
   deleteShowtime,
   getShowtimes,
   getShowtimeDetails,
-  holdSeats
+  holdSeats,
+  releaseSeats
 }
