@@ -87,11 +87,26 @@ const holdSeats = async (req, res, next) => {
   }
 }
 
+const releaseSeats = async (req, res, next) => {
+  try {
+    const showtimeId = req.params.id
+    const seatNumbers = req.body.seatNumbers
+    const userId = req.user._id // Lấy từ middleware protect
+
+    await showtimeService.releaseSeats(userId.toString(), showtimeId, seatNumbers)
+
+    res.status(200).json({ message: 'Released seats successfully' })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const showtimeController = {
   createNew,
   updateShowtime,
   deleteShowtime,
   getShowtimes,
   getShowtimeDetails,
-  holdSeats
+  holdSeats,
+  releaseSeats
 }
