@@ -20,30 +20,67 @@ const START_SERVER = () => {
   const httpServer = createServer(app)
   io = new Server(httpServer, {
     cors: {
-      origin: '*', // Cho phép tất cả các domain (thay đổi '*' thành domain frontend của bạn khi deploy)
+      origin: '*',
       methods: ['GET', 'POST']
     }
   })
 
   // Lắng nghe sự kiện kết nối từ client
   io.on('connection', (socket) => {
-    console.log(`New client connected: ${socket.id}`)
+    // console.log(`New client connected: ${socket.id}`)
 
-    // Lắng nghe sự kiện "join_movie_room" từ client
-    // Khi client xem một phim, họ sẽ tham gia vào "phòng" của phim đó
-    socket.on('join_movie_room', (movieId) => {
-      socket.join(movieId) // Cho socket tham gia vào phòng có tên là movieId
-      console.log(`Client ${socket.id} joined room ${movieId}`)
+    // 1. SỬA LẠI TÊN SỰ KIỆN CHO KHỚP VỚI FRONTEND (Seats.tsx)
+    // Frontend: newSocket.emit('join_room', showtimeId);
+    socket.on('join_room', (showtimeId) => {
+      socket.join(showtimeId) // Tham gia vào phòng theo ID suất chiếu
+      // console.log(`Client ${socket.id} joined room ${showtimeId}`)
     })
 
-    // Lắng nghe sự kiện "leave_movie_room"
-    socket.on('leave_movie_room', (movieId) => {
-      socket.leave(movieId)
-      console.log(`Client ${socket.id} left room ${movieId}`)
+    socket.on('leave_room', (showtimeId) => {
+      socket.leave(showtimeId)
+      // console.log(`Client ${socket.id} left room ${showtimeId}`)
+    })
+
+    // 2. THÊM LOGIC LẮNG NGHE CHỌN GHẾ (HOLD)
+    socket.on('seat:hold', ({ showtimeId, seatId, userId }) => {
+      console.log(`Client ${socket.id} held seat ${seatId} in showtime ${showtimeId}`)
+
+      // Gửi sự kiện 'seat:updated' cho TẤT CẢ mọi người trong phòng TRỪ người gửi
+      // Để người khác thấy ghế chuyển sang màu xám ngay lập tức
+      socket.to(showtimeId).emit('seat:updated', {
+        id: seatId,
+        state: 'held', // Frontend sẽ hiển thị màu xám/đen dựa trên state này
+        userId: userId
+      })
+    })
+
+    // 3. THÊM LOGIC LẮNG NGHE BỎ CHỌN GHẾ (RELEASE)
+    socket.on('seat:release', ({ showtimeId, seatId, userId }) => {
+      // console.log(`Client ${socket.id} released seat ${seatId}`)
+
+      // Báo cho mọi người khác là ghế này đã trống
+      socket.to(showtimeId).emit('seat:updated', {
+        id: seatId,
+        state: 'empty', // Frontend sẽ hiển thị màu trắng
+        userId: null
+      })
+    })
+
+    // 4. THÊM LOGIC LẮNG NGHE BỎ CHỌN NHIỀU GHẾ (Khi hết giờ hoặc thoát trang)
+    socket.on('seat:release_many', ({ showtimeId, seatIds, userId }) => {
+      if (seatIds && seatIds.length > 0) {
+        seatIds.forEach(seatId => {
+          socket.to(showtimeId).emit('seat:updated', {
+            id: seatId,
+            state: 'empty',
+            userId: null
+          })
+        })
+      }
     })
 
     socket.on('disconnect', () => {
-      console.log(`Client disconnected: ${socket.id}`)
+      // console.log(`Client disconnected: ${socket.id}`)
     })
   })
 
