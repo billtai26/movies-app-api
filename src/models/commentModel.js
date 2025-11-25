@@ -74,8 +74,38 @@ const findByMovieId = async (movieId) => {
   ]).toArray()
 }
 
+// Cập nhật nội dung comment theo id
+const updateById = async (id, data) => {
+  const setData = {
+    ...data,
+    updatedAt: Date.now()
+  }
+
+  await GET_DB().collection(COMMENT_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: setData }
+  )
+
+  // Trả về comment đã cập nhật (populate user)
+  const [updated] = await findOneById(id)
+  return updated
+}
+
+// Xóa mềm comment (đánh dấu _destroy = true)
+const markDeleteById = async (id) => {
+  await GET_DB().collection(COMMENT_COLLECTION_NAME).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { _destroy: true, updatedAt: Date.now() } }
+  )
+
+  const [deleted] = await findOneById(id)
+  return deleted
+}
+
 export const commentModel = {
   createNew,
   findOneById,
-  findByMovieId
+  findByMovieId,
+  updateById,
+  markDeleteById
 }

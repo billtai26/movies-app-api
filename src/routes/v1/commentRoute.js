@@ -12,4 +12,10 @@ Router.route('/')
 Router.route('/movie/:movieId')
   .get(commentController.getCommentsByMovie)
 
+// GET /v1/comments/:id (Lấy 1 comment theo id - Công khai)
+Router.route('/:id')
+  .get(commentController.getCommentById)
+  .put(protect, commentController.updateComment)
+  .delete(protect, commentController.deleteComment)
+
 export const commentRoute = Router

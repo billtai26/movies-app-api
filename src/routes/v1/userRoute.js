@@ -27,6 +27,10 @@ Router.route('/forgot-password')
 Router.route('/reset-password/:resetToken')
   .put(userValidation.resetPassword, userController.resetPassword)
 
+// Backwards-compatible route: accept token in body (frontend may send { token, password })
+Router.route('/reset-password')
+  .put(userValidation.resetPassword, userController.resetPassword)
+
 Router.route('/profile/avatar')
   .patch(
     protect,

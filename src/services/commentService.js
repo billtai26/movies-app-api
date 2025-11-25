@@ -75,7 +75,54 @@ const getCommentsByMovie = async (movieId) => {
   return commentTree
 }
 
+/**
+ * Lấy 1 comment theo id
+ */
+const getCommentById = async (id) => {
+  const results = await commentModel.findOneById(id)
+  return results[0] || null
+}
+
+/**
+ * Cập nhật comment
+ */
+const updateComment = async (id, content) => {
+  const updated = await commentModel.updateById(id, { content })
+
+  try {
+    const io = getIO()
+    if (updated && updated.movieId) {
+      io.to(updated.movieId.toString()).emit('update_comment', updated)
+    }
+  } catch (error) {
+    // ignore socket errors
+  }
+
+  return updated
+}
+
+/**
+ * Xóa (soft-delete) comment
+ */
+const deleteComment = async (id) => {
+  const deleted = await commentModel.markDeleteById(id)
+
+  try {
+    const io = getIO()
+    if (deleted && deleted.movieId) {
+      io.to(deleted.movieId.toString()).emit('delete_comment', deleted)
+    }
+  } catch (error) {
+    // ignore socket errors
+  }
+
+  return deleted
+}
+
 export const commentService = {
   createComment,
-  getCommentsByMovie
+  getCommentsByMovie,
+  updateComment,
+  getCommentById,
+  deleteComment
 }
