@@ -11,8 +11,9 @@ const createNew = async (req, res, next) => {
     genres: Joi.array().items(Joi.string()).required().min(1),
     posterUrl: Joi.string().required().uri().trim().strict(),
     trailerUrl: Joi.string().required().uri().trim().strict(),
-    status: Joi.string().valid('now_showing', 'coming_soon').required()
+    status: Joi.string().valid('now_showing', 'coming_soon').required(),
     // Không cần validate rating, count vì đã có default
+    actors: Joi.array().items(Joi.string()).required().min(1)
   })
 
   try {
@@ -35,7 +36,8 @@ const update = async (req, res, next) => {
     genres: Joi.array().items(Joi.string()).min(1),
     posterUrl: Joi.string().uri().trim().strict(),
     trailerUrl: Joi.string().uri().trim().strict(),
-    status: Joi.string().valid('now_showing', 'coming_soon')
+    status: Joi.string().valid('now_showing', 'coming_soon'),
+    actors: Joi.array().items(Joi.string())
 
     // Không cho phép cập nhật rating qua API này
   }).min(1) // Yêu cầu ít nhất 1 trường để cập nhật
