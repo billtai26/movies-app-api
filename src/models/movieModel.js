@@ -10,6 +10,7 @@ const MOVIE_COLLECTION_SCHEMA = Joi.object({
   releaseDate: Joi.date().required(),
   durationInMinutes: Joi.number().required().integer().min(30),
   genres: Joi.array().items(Joi.string()).required().min(1),
+  actors: Joi.array().items(Joi.string()).required().min(1),
   posterUrl: Joi.string().required().uri().trim().strict(),
   trailerUrl: Joi.string().required().uri().trim().strict(),
   // Có thể thêm các trạng thái: 'now_showing', 'coming_soon'
