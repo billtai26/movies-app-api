@@ -1,59 +1,105 @@
 import { cinemaHallModel } from '~/models/cinemaHallModel'
 import { cinemaModel } from '~/models/cinemaModel'
+import { ObjectId } from 'mongodb'
+import { slugify } from '~/utils/formatters'
+import { ApiError } from '~/utils/ApiError'
+import { StatusCodes } from 'http-status-codes'
 
 /**
  * 1. Thêm phòng chiếu (và tự động tạo ghế)
  */
 const createNew = async (reqBody) => {
-  try {
-    const { cinemaId, name, cinemaType, seatLayout } = reqBody
+  // 1. Kiểm tra Rạp tồn tại
+  // 👉 THÊM DÒNG LOG NÀY
+  // console.log('DEBUG - ID nhận được:', reqBody.cinemaId)
+  // console.log('DEBUG - ID sau khi convert:', new ObjectId(reqBody.cinemaId))
 
-    // 1. Kiểm tra Cụm rạp (cha) có tồn tại không
-    const cinema = await cinemaModel.findOneById(cinemaId)
-    if (!cinema) {
-      throw new Error('Cinema not found')
-    }
+  const foundCinema = await cinemaModel.findOneById(new ObjectId(reqBody.cinemaId))
+  if (!foundCinema) {
+    // 👉 THÊM DÒNG LOG NÀY
+    // console.log('DEBUG - Lỗi: Tìm trong DB không thấy rạp nào khớp ID trên!')
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Cinema not found')
+  }
+  // 2. LOGIC SINH GHẾ TỪ CONFIG
+  // LOGIC SINH GHẾ TỪ CONFIG
+  const { rows, seatsPerRow, vipRows, coupleRows } = reqBody.seatLayout
+  const seats = []
 
-    // --- Logic tự động tạo ghế ---
-    let seats = []
-    let totalSeats = 0
-    const { rows, seatsPerRow, vipRows, coupleRows } = seatLayout
+  rows.forEach(rowChar => {
+    for (let i = 1; i <= seatsPerRow; i++) {
+      let seatType = 'standard' // 👉 Đổi tên biến type -> seatType
 
-    for (const row of rows) { // Ví dụ: rows = ['A', 'B', 'C']
-      for (let i = 1; i <= seatsPerRow; i++) {
-        let seatType = 'standard'
-        if (vipRows?.includes(row)) seatType = 'vip'
-        if (coupleRows?.includes(row)) seatType = 'couple'
-
-        seats.push({
-          row: row,
-          number: i,
-          seatType: seatType,
-          status: 'available' // Mặc định khi tạo
-        })
-        totalSeats++
+      if (vipRows && vipRows.includes(rowChar)) {
+        seatType = 'vip'
       }
-    }
-    // --- Kết thúc logic tạo ghế ---
+      if (coupleRows && coupleRows.includes(rowChar)) {
+        seatType = 'couple'
+      }
 
-    const newHallData = {
-      cinemaId: cinemaId, // <-- Pass cinemaId (dạng string)
-      name,
-      cinemaType,
-      seats: seats,
-      totalSeats: totalSeats
+      seats.push({
+        row: rowChar, // VD: "A"
+        number: i, // VD: 1
+        seatType: seatType // VD: "VIP"
+      })
     }
+  })
 
-    const createdHall = await cinemaHallModel.createNew(newHallData)
-    // Trả về dữ liệu đầy đủ sau khi tạo
-    return await cinemaHallModel.findOneById(createdHall.insertedId)
-  } catch (error) { throw new Error(error.message) }
+  // 3. Chuẩn bị dữ liệu lưu DB
+  const newHallData = {
+    name: reqBody.name,
+    slug: slugify(reqBody.name),
+    cinemaId: reqBody.cinemaId,
+    cinemaType: reqBody.cinemaType,
+    totalSeats: seats.length, // Tự tính tổng ghế
+    seats: seats, // 👉 Lưu mảng ghế đã sinh ra vào DB
+    // Lưu lại config để sau này hiển thị lại form edit nếu cần
+    seatConfig: reqBody.seatLayout,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+
+  // 4. Lưu
+  const createdHall = await cinemaHallModel.createNew(newHallData)
+  return await cinemaHallModel.findOneById(createdHall.insertedId)
 }
 
 /**
  * 2. Sửa thông tin phòng (Tên, Loại)
  */
-const updateHall = async (hallId, updateData) => {
+const updateHall = async (hallId, reqBody) => {
+  let updateData = {
+    ...reqBody,
+    updatedAt: new Date()
+  }
+
+  // 👉 LOGIC QUAN TRỌNG: Nếu có sửa layout -> Tính toán lại ghế
+  if (reqBody.seatLayout) {
+    const { rows, seatsPerRow, vipRows, coupleRows } = reqBody.seatLayout
+    const seats = []
+
+    rows.forEach(rowChar => {
+      for (let i = 1; i <= seatsPerRow; i++) {
+        let seatType = 'standard' // Chữ thường
+        if (vipRows && vipRows.includes(rowChar)) seatType = 'vip'
+        if (coupleRows && coupleRows.includes(rowChar)) seatType = 'couple'
+
+        seats.push({
+          row: rowChar,
+          number: i,
+          seatType: seatType
+        })
+      }
+    })
+
+    // Gán dữ liệu ghế mới vào gói update
+    updateData.seats = seats
+    updateData.totalSeats = seats.length
+    updateData.seatConfig = reqBody.seatLayout
+  }
+
+  // Loại bỏ cinemaId khỏi gói update (thường không cho phép chuyển phòng sang rạp khác)
+  if (updateData.cinemaId) delete updateData.cinemaId
+
   const updatedHall = await cinemaHallModel.update(hallId, updateData)
   if (!updatedHall) {
     throw new Error('Hall not found or update failed')
