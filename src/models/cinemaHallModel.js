@@ -21,6 +21,10 @@ const CINEMA_HALL_COLLECTION_SCHEMA = Joi.object({
   name: Joi.string().required().min(3).max(50).trim().strict(), // "Phòng 1", "IMAX"
   cinemaType: Joi.string().valid('2D', '3D', 'IMAX').required(),
 
+  // 👉 THÊM 2 DÒNG NÀY:
+  slug: Joi.string().required(),
+  seatConfig: Joi.object().required().unknown(true),
+
   // Ghế được nhúng trực tiếp vào
   seats: Joi.array().items(SEAT_SCHEMA).required().min(1),
   totalSeats: Joi.number().integer().required(),
@@ -59,9 +63,12 @@ const findOneById = async (id) => {
  */
 const update = async (id, data) => {
   delete data._id
-  // Không cho phép sửa ghế bằng hàm này
-  delete data.seats
-  delete data.totalSeats
+
+  // 👉 QUAN TRỌNG: XÓA HOẶC COMMENT 2 DÒNG NÀY ĐI
+  // delete data.seats
+  // delete data.totalSeats
+
+  // (Bởi vì nếu Service đã tính toán lại ghế mới, ta cần cho phép lưu nó vào DB)
 
   return await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).findOneAndUpdate(
     { _id: new ObjectId(id), _destroy: false },
