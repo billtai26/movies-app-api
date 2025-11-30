@@ -133,44 +133,35 @@ const softDelete = async (id) => {
 
 // Hàm này rất quan trọng: Cập nhật nhiều ghế cùng lúc (Atomic)
 const updateSeatsStatus = async (showtimeId, seatNumbers, newStatus, userId, heldUntil) => {
-  // Filter đơn giản hơn: chỉ cần tìm đúng document
-  const filter = {
-    _id: new ObjectId(showtimeId)
-  }
+  const filter = { _id: new ObjectId(showtimeId) };
 
-  // Dữ liệu sẽ được cập nhật
-  const arrayFilterUpdate = {
+  const update = {
     $set: {
-      'seats.$[elem].status': newStatus,
-      'seats.$[elem].heldBy': userId,
-      'seats.$[elem].heldUntil': heldUntil
+      "seats.$[elem].status": newStatus,
+      "seats.$[elem].heldBy": userId,
+      "seats.$[elem].heldUntil": heldUntil
     }
-  }
+  };
 
-  // TÙY CHỌN QUAN TRỌNG NHẤT: Thêm điều kiện status vào arrayFilters
   const options = {
     arrayFilters: [
-      {
-        'elem.seatNumber': { $in: seatNumbers },
-        'elem.status': 'available' // <-- ĐÂY LÀ SỬA ĐỔI CỐT LÕI
-      }
+      { "elem.seatNumber": { $in: seatNumbers } }
     ]
-  }
+  };
 
-  const result = await GET_DB().collection(SHOWTIME_COLLECTION_NAME).updateOne(filter, arrayFilterUpdate, options)
-  return result
-}
+  return await GET_DB()
+    .collection(SHOWTIME_COLLECTION_NAME)
+    .updateOne(filter, update, options);
+};
 
 // Trong showtimeModel
 const rollbackSeatHold = async (showtimeId, seatNumbers, userId) => {
-  const filter = {
-    _id: new ObjectId(showtimeId)
-  }
+  const filter = {_id: new ObjectId(showtimeId)}
 
   const update = {
     $set: {
       'seats.$[elem].status': 'available',
-      'seats.$[Mym_elem].heldBy': null,
+      'seats.$[elem].heldBy': null,
       'seats.$[elem].heldUntil': null
     }
   }

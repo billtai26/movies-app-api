@@ -10,7 +10,7 @@ import passport from 'passport'
 import { configurePassport } from '~/config/passport'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-
+import aiRoutes from "./routes/v1/ai.routes.js";
 let io = null // Khai báo biến io
 
 const START_SERVER = () => {
@@ -97,6 +97,8 @@ const START_SERVER = () => {
   // Sử dụng Routers
   app.use('/v1', APIs_V1)
 
+  // AI Chat routes
+  app.use("/v1/ai", aiRoutes);
   // Bắt đầu chạy job tự động hủy ghế
   startReleaseSeatsJob()
 
