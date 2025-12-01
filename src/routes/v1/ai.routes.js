@@ -5,27 +5,43 @@ import { GET_DB } from "~/config/mongodb";
 
 const router = express.Router();
 
-// =============== GROQ CLIENT ===============
 const client = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1"
 });
 
-// ====================== HELPERS ======================
+// ======================= Kiểm tra xem câu hỏi có liên quan phim không =======================
+function isMovieRelated(message = "") {
+  const text = message.toLowerCase();
 
-// Bỏ dấu tiếng Việt
-function normalize(str = "") {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
+  const keywords = [
+    "phim", "movie", "đang chiếu", "sắp chiếu",
+    "rạp", "đặt vé", "suất chiếu", "ghế", "cinesta"
+  ];
+
+  return keywords.some(k => text.includes(k));
 }
 
-// Lưu lịch sử chat
+// ======================= Lấy phim từ MongoDB =======================
+async function fetchMovies() {
+  return await GET_DB()
+    .collection("movies")
+    .find({ _destroy: false })
+    .project({
+      title: 1,
+      genres: 1,
+      description: 1,
+      posterUrl: 1,
+      status: 1,
+      averageRating: 1
+    })
+    .limit(30)
+    .toArray();
+}
+
+// ======================= Save chat =======================
 async function saveChat(userId, userMsg, botMsg) {
   if (!userId) return;
-
   const now = new Date();
 
   await AIChatModel.create({
@@ -43,120 +59,91 @@ async function saveChat(userId, userMsg, botMsg) {
   });
 }
 
-// ====================== INTENT DETECTOR ======================
-async function detectIntent(message) {
-  const prompt = `
-Bạn là Cinesta AI.
-Hãy phân loại câu người dùng thành 1 trong 3 nhãn sau:
-- GREETING  (hello, xin chào, chào bạn...)
-- MOVIE     (hỏi phim, thể loại, đang chiếu, sắp chiếu...)
-- OTHER     (mọi thứ khác)
+// ======================= AI trả lời về phim =======================
+async function movieAI(message, movies) {
+  const systemPrompt = `
+Bạn là Cinesta AI — trợ lý thông minh của hệ thống đặt vé Cinesta.
+Bạn chỉ được sử dụng dữ liệu phim bên dưới để trả lời khi câu hỏi liên quan đến phim:
 
-CHỈ TRẢ VỀ: GREETING, MOVIE hoặc OTHER.
+${JSON.stringify(movies, null, 2)}
+
+Nhiệm vụ:
+- Phân tích câu hỏi.
+- Lọc phim phù hợp theo title, thể loại, mô tả, hoặc status (now_showing / coming_soon).
+- Nếu có phim phù hợp → trả về theo format sau:
+
+<<MOVIES>> [
+  { "title": "Tên phim", "genre": "Hành động", "rating": 8.5, "poster": "..." }
+]
+
+- Nếu câu hỏi chỉ là nói chuyện (không yêu cầu tìm phim) → trả lời tự nhiên.
+
+QUAN TRỌNG: Không được bịa thêm phim không có trong danh sách trên.
   `;
 
   const completion = await client.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     messages: [
-      { role: "system", content: prompt },
+      { role: "system", content: systemPrompt },
       { role: "user", content: message }
     ],
-    temperature: 0.1
+    temperature: 0.2
   });
 
   return completion.choices[0].message.content.trim();
 }
 
-// ====================== FIND MOVIES ======================
-async function recommendMovies(message) {
-  const raw = message || "";
-  const text = normalize(raw);
+// ======================= AI trả lời bình thường =======================
+async function generalAI(message) {
+  const completion = await client.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    messages: [
+      {
+        role: "system",
+        content: `
+Bạn là trợ lý AI thân thiện. Trả lời tự nhiên, logic, hữu ích cho mọi câu hỏi.
+Không tạo phim hoặc dữ liệu Cinesta trừ khi được hỏi rõ ràng.
+        `
+      },
+      { role: "user", content: message }
+    ],
+    temperature: 0.7
+  });
 
-  const query = {};         // now_showing / coming_soon
-  const or = [];            // match genres or movie title
+  return completion.choices[0].message.content.trim();
+}
 
-  // ----- Detect status -----
-  if (text.includes("dang chieu") || text.includes("hom nay")) {
-    query.status = "now_showing";
-  }
+// ======================= ROUTE CHÍNH =======================
+router.post("/chat", async (req, res) => {
+  try {
+    const { userId, message } = req.body;
+    if (!message) return res.json({ reply: "Bạn muốn nói gì với Cinesta AI?" });
 
-  if (text.includes("sap chieu")) {
-    query.status = "coming_soon";
-  }
+    let reply = "";
 
-  // ----- Detect genres -----
-  const genreMap = [
-    { keys: ["kinh di", "horror", "ma"], regex: /Horror|Kinh dị/i },
-    { keys: ["hanh dong", "action"], regex: /Action/i },
-    { keys: ["hai", "hai huoc", "comedy"], regex: /Comedy|Hài/i },
-    { keys: ["tinh cam", "romance", "love"], regex: /Romance/i },
-    { keys: ["anime", "hoat hinh"], regex: /Animation|Anime/i },
-    { keys: ["khoa hoc", "sci fi", "vien tuong"], regex: /Sci-Fi|Khoa học/i }
-  ];
-
-  for (const g of genreMap) {
-    if (g.keys.some(k => text.includes(k))) {
-      or.push({ genres: g.regex });
+    if (isMovieRelated(message)) {
+      // Nếu câu hỏi liên quan phim → Movie Mode
+      const movies = await fetchMovies();
+      reply = await movieAI(message, movies);
+    } else {
+      // Nếu câu hỏi ngoài lề → General Mode
+      reply = await generalAI(message);
     }
+
+    // Lưu chat
+    await saveChat(userId, message, reply);
+
+    return res.json({ reply });
+
+  } catch (err) {
+    console.error("AI Chat Error:", err);
+    return res.status(500).json({
+      reply: "Xin lỗi, Cinesta AI đang gặp lỗi."
+    });
   }
+});
 
-  // ----- Detect movie name -----
-  const nameMatch = raw.match(/phim\s+(.+)/i);
-  if (nameMatch) {
-    const kw = nameMatch[1].trim();
-    or.push({ title: new RegExp(kw, "i") });
-  }
-
-  // ----- Combine filters -----
-  let mongoQuery = { _destroy: false };
-
-  if (Object.keys(query).length > 0) {
-    mongoQuery = { ...mongoQuery, ...query };
-  }
-
-  if (or.length > 0) {
-    mongoQuery = { ...mongoQuery, $or: or };
-  }
-
-  const movies = await GET_DB()
-    .collection("movies")
-    .find(mongoQuery)
-    .project({
-      title: 1,
-      genres: 1,
-      posterUrl: 1,
-      averageRating: 1,
-      status: 1
-    })
-    .sort({ averageRating: -1 })
-    .limit(5)
-    .toArray();
-
-  return movies;
-}
-
-// ====================== BUILD REPLY ======================
-function buildReply(movies) {
-  if (!movies || movies.length === 0) {
-    return "Hiện tại Cinesta chưa có phim nào phù hợp với yêu cầu của bạn.";
-  }
-
-  let text = "Dưới đây là những phim phù hợp yêu cầu của bạn:\n";
-
-  const arr = movies.map(m => ({
-    id: String(m._id),
-    title: m.title,
-    poster: m.posterUrl || "",
-    genre: Array.isArray(m.genres) ? m.genres.join(", ") : "",
-    rating: m.averageRating ?? 0
-  }));
-
-  return text + "\n<<MOVIES>>" + JSON.stringify(arr);
-}
-
-// ====================== ROUTES ======================
-
-// Lấy lịch sử chat
+// ======================= Lịch sử chat =======================
 router.get("/history", async (req, res) => {
   try {
     const { userId } = req.query;
@@ -168,43 +155,9 @@ router.get("/history", async (req, res) => {
       role: h.role,
       content: h.content
     })));
-  } catch (err) {
-    res.status(500).json([]);
-  }
-});
-
-// Xử lý chat chính
-router.post("/chat", async (req, res) => {
-  try {
-    const { userId, message } = req.body;
-    if (!message) return res.json({ reply: "Bạn muốn hỏi gì về phim ạ?" });
-
-    const intent = await detectIntent(message);
-
-    // Greeting
-    if (intent === "GREETING") {
-      const reply = "Hello bạn 👋! Bạn muốn xem phim gì hôm nay?";
-      await saveChat(userId, message, reply);
-      return res.json({ reply });
-    }
-
-    // Không liên quan phim
-    if (intent === "OTHER") {
-      const reply = "Mình chỉ hỗ trợ tìm phim trong hệ thống Cinesta nhé. Bạn thử hỏi: phim đang chiếu, phim hành động...";
-      await saveChat(userId, message, reply);
-      return res.json({ reply });
-    }
-
-    // Tìm phim
-    const movies = await recommendMovies(message);
-    const reply = buildReply(movies);
-
-    await saveChat(userId, message, reply);
-    return res.json({ reply });
 
   } catch (err) {
-    console.error("AI Chat Error:", err);
-    res.status(500).json({ reply: "Xin lỗi, hệ thống đang gặp lỗi." });
+    res.json([]);
   }
 });
 
