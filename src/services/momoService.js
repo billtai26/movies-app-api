@@ -1,96 +1,90 @@
 import crypto from 'crypto'
-import https from 'https'
+import axios from 'axios'
 
 class MomoService {
   constructor() {
     this.accessKey = 'F8BBA842ECF85'
     this.secretKey = 'K951B6PE1waDMi640xX08PD3vg6EkVlz'
     this.partnerCode = 'MOMO'
-    this.redirectUrl = 'https://webhook.site/d0a78b9e-f6e5-4739-b5df-ac58d140be01'
-    this.ipnUrl = 'https://webhook.site/d0a78b9e-f6e5-4739-b5df-ac58d140be01'
+
+    // URL dev của bạn
+    this.redirectUrl = 'http://localhost:5173/booking/confirm'
+    this.ipnUrl = 'http://localhost:8017/v1/payments/momo/callback'
   }
 
-  async createPayment(amount, orderInfo = 'Pay with MoMo') {
-    const requestId = this.partnerCode + new Date().getTime()
+  // Bỏ dấu tiếng Việt + ký tự lạ khỏi orderInfo
+  removeVietnamese (str = '') {
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+  }
+
+  // Tạo thanh toán MoMo
+  async createPayment (amount, orderInfoRaw = 'BookingMovie') {
+    const orderInfo = this.removeVietnamese(orderInfoRaw)
+
+    const requestId = `${this.partnerCode}${Date.now()}`
     const orderId = requestId
-    const requestType = 'payWithMethod'
+    const requestType = 'captureWallet'
     const extraData = ''
-    const orderGroupId = ''
-    const autoCapture = true
-    const lang = 'vi'
 
-    // Create raw signature
-    const rawSignature = `accessKey=${this.accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${this.ipnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${this.partnerCode}&redirectUrl=${this.redirectUrl}&requestId=${requestId}&requestType=${requestType}`
+    // Chuỗi ký chữ ký
+    const rawSignature =
+      `accessKey=${this.accessKey}` +
+      `&amount=${amount}` +
+      `&extraData=${extraData}` +
+      `&ipnUrl=${this.ipnUrl}` +
+      `&orderId=${orderId}` +
+      `&orderInfo=${orderInfo}` +
+      `&partnerCode=${this.partnerCode}` +
+      `&redirectUrl=${this.redirectUrl}` +
+      `&requestId=${requestId}` +
+      `&requestType=${requestType}`
 
-    // Create signature
-    const signature = crypto.createHmac('sha256', this.secretKey)
+    const signature = crypto
+      .createHmac('sha256', this.secretKey)
       .update(rawSignature)
       .digest('hex')
 
-    // Create request body
-    const requestBody = JSON.stringify({
+    const body = {
       partnerCode: this.partnerCode,
-      partnerName: 'Test',
-      storeId: 'MomoTestStore',
-      requestId: requestId,
-      amount: amount,
-      orderId: orderId,
-      orderInfo: orderInfo,
+      accessKey: this.accessKey,
+      requestId,
+      orderId,
+      amount: String(amount),
+      orderInfo,
       redirectUrl: this.redirectUrl,
       ipnUrl: this.ipnUrl,
-      lang: lang,
-      requestType: requestType,
-      autoCapture: autoCapture,
-      extraData: extraData,
-      orderGroupId: orderGroupId,
-      signature: signature
-    })
-
-    // Create request options
-    const options = {
-      hostname: 'test-payment.momo.vn',
-      port: 443,
-      path: '/v2/gateway/api/create',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody)
-      }
+      requestType,
+      extraData,
+      signature,
+      lang: 'vi'
     }
 
-    // Return promise for async/await usage
-    return new Promise((resolve, reject) => {
-      const req = https.request(options, res => {
-        let data = ''
+    try {
+      const res = await axios.post(
+        'https://test-payment.momo.vn/v2/gateway/api/create',
+        body,
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000
+        }
+      )
 
-        res.setEncoding('utf8')
-        res.on('data', (chunk) => {
-          data += chunk
-        })
-
-        res.on('end', () => {
-          try {
-            const response = JSON.parse(data)
-            resolve(response)
-          } catch (error) {
-            reject(error)
-          }
-        })
-      })
-
-      req.on('error', (error) => {
-        reject(error)
-      })
-
-      req.write(requestBody)
-      req.end()
-    })
+      console.log('✅ MoMo createPayment response:', res.data)
+      return res.data
+    } catch (err) {
+      console.error('❌ MoMo createPayment ERROR:',
+        err.response?.data || err.message || err)
+      throw err
+    }
   }
 
-  async verifySignature(response) {
+  // Verify callback
+  verifySignature (response) {
     const {
-      // eslint-disable-next-line no-unused-vars
-      accessKey,
       amount,
       extraData,
       message,
@@ -106,56 +100,40 @@ class MomoService {
       signature
     } = response
 
-    // Build raw signature
-    const rawSignature = `accessKey=${this.accessKey}&amount=${amount}&extraData=${extraData}&message=${message}&orderId=${orderId}&orderInfo=${orderInfo}&orderType=${orderType}&partnerCode=${partnerCode}&payType=${payType}&requestId=${requestId}&responseTime=${responseTime}&resultCode=${resultCode}&transId=${transId}`
+    const rawSignature =
+      `accessKey=${this.accessKey}` +
+      `&amount=${amount}` +
+      `&extraData=${extraData}` +
+      `&message=${message}` +
+      `&orderId=${orderId}` +
+      `&orderInfo=${orderInfo}` +
+      `&orderType=${orderType}` +
+      `&partnerCode=${partnerCode}` +
+      `&payType=${payType}` +
+      `&requestId=${requestId}` +
+      `&responseTime=${responseTime}` +
+      `&resultCode=${resultCode}` +
+      `&transId=${transId}`
 
-    // Generate signature
-    const generatedSignature = crypto
+    const signed = crypto
       .createHmac('sha256', this.secretKey)
       .update(rawSignature)
       .digest('hex')
 
-    // Compare signatures
-    return signature === generatedSignature
+    return signature === signed
   }
 
-  async handlePaymentCallback(response) {
-    try {
-      // Verify the signature first
-      const isValidSignature = await this.verifySignature(response)
-      if (!isValidSignature) {
-        throw new Error('Invalid signature from MoMo')
-      }
+  async handlePaymentCallback (data) {
+    const isValid = this.verifySignature(data)
+    if (!isValid) throw new Error('Invalid MoMo signature')
 
-      const {
-        resultCode,
-        orderId,
-        amount,
-        transId,
-        orderInfo,
-        message
-      } = response
-
-      // Parse the orderId to get the booking reference if needed
-      // In our case, orderId = partnerCode + timestamp
-      // You might want to store this mapping in your database
-
-      // Prepare the result object
-      const result = {
-        success: resultCode === 0,
-        orderId,
-        amount: parseInt(amount),
-        transactionId: transId,
-        orderInfo,
-        message,
-        responseCode: resultCode,
-        responseData: response
-      }
-
-      // Return processed result
-      return result
-    } catch (error) {
-      throw new Error(`Payment callback processing failed: ${error.message}`)
+    return {
+      success: data.resultCode === 0,
+      message: data.message,
+      orderId: data.orderId,
+      transId: data.transId,
+      amount: Number(data.amount),
+      data
     }
   }
 }
