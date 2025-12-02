@@ -1,42 +1,48 @@
 import MomoService from '~/services/momoService'
 import { bookingModel } from '~/models/bookingModel'
-import { userModel } from '~/models/userModel' // <-- IMPORT userModel
-import { voucherService } from '~/services/voucherService' // <-- IMPORT voucherService
+import { userModel } from '~/models/userModel'
+import { voucherService } from '~/services/voucherService'
 import { voucherModel } from '~/models/voucherModel'
 import { notificationService } from '~/services/notificationService'
-import { movieModel } from '~/models/movieModel' // Để lấy tên phim
-import { env } from '~/config/environment' // Để lấy URL frontend
+import { movieModel } from '~/models/movieModel'
+import { env } from '~/config/environment'
 import { showtimeModel } from '~/models/showtimeModel'
+import { comboModel } from '~/models/comboModel'
 
 export const paymentController = {
   initializePayment: async (req, res) => {
+    console.log('🔥 BODY NHẬN ĐƯỢC TỪ FE:', req.body)
+
     try {
       const {
         showtimeId,
         movieId,
-        seats,
-        combos = [],
-        amount, // Đây là giá GỐC (trước khi giảm)
-        pointsToSpend = 0, // User muốn tiêu (mặc định là 0)
-        voucherCode = null // User muốn dùng (mặc định là null)
+        seats,             // FE: ['B1', 'B2', ...]
+        combos = {},       // FE: { comboId: quantity, ... }
+        amount,
+        pointsToSpend = 0,
+        voucherCode = null,
+        // orderInfo từ FE KHÔNG dùng cho MoMo để giữ format callback
       } = req.body
 
-      // Validate required fields
-      if (!showtimeId || !movieId || !seats || !amount) {
+      // 1. Validate input cơ bản
+      if (!showtimeId || !movieId || !Array.isArray(seats) || !amount) {
         return res.status(400).json({
           success: false,
-          message: 'Missing required fields: showtimeId, movieId, seats, amount'
+          message:
+            'Missing required fields: showtimeId, movieId, seats (array), amount'
         })
       }
 
-      // Get user ID from auth middleware
       const userId = req.user._id
-
-      // Chuyển ObjectId thành String TRƯỚC KHI tạo bookingData
       const userIdString = userId.toString()
 
-      // Check seat availability
-      const seatAvailability = await bookingModel.checkSeatAvailability(showtimeId, seats)
+      // 2. Check ghế còn trống (dùng seatNumber string như FE gửi)
+      const seatAvailability = await bookingModel.checkSeatAvailability(
+        showtimeId,
+        seats
+      )
+
       if (!seatAvailability.available) {
         return res.status(400).json({
           success: false,
@@ -45,110 +51,181 @@ export const paymentController = {
         })
       }
 
-      // --- LOGIC TÍNH TOÁN GIẢM GIÁ ---
+      // 3. Lấy showtime để map ghế từ string -> object đúng schema
+      const showtime = await showtimeModel.findOneById(showtimeId)
+      if (!showtime) {
+        return res.status(404).json({
+          success: false,
+          message: 'Showtime not found'
+        })
+      }
+
+      // ==== CHUẨN HÓA SEATS ====
+      // showtime.seats: [{ seatNumber, row, number, price, type, status, ... }]
+      const selectedSeatNumbers = seats
+      const seatsForBooking = selectedSeatNumbers
+        .map(seatNum => {
+          const s = showtime.seats.find(seat => seat.seatNumber === seatNum)
+          if (!s) return null
+
+          // 👇 CHỈ GIỮ row, number, price cho đúng Joi
+          return {
+            row: s.row ?? String(s.seatNumber)[0],
+            number:
+              s.number ??
+              parseInt(String(s.seatNumber).slice(1), 10),
+            price: s.price
+          }
+        })
+        .filter(Boolean)
+
+      if (seatsForBooking.length !== selectedSeatNumbers.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'Some seats not found in showtime'
+        })
+      }
+
+      // ==== CHUẨN HÓA COMBOS ====
+      let combosForBooking = []
+
+      if (Array.isArray(combos)) {
+        // Nếu FE sau này gửi đúng dạng array thì giữ nguyên, nhưng
+        // vẫn đảm bảo có price
+        combosForBooking = combos
+      } else if (combos && typeof combos === 'object') {
+        const entries = Object.entries(combos).filter(
+          ([, qty]) => Number(qty) > 0
+        )
+
+        for (const [comboId, qty] of entries) {
+          const comboDoc = await comboModel.findOneById(comboId)
+          if (!comboDoc) continue
+
+          combosForBooking.push({
+            comboId,
+            quantity: Number(qty),
+            price: comboDoc.price // 👈 BỔ SUNG PRICE ĐỂ PASS VALIDATION
+          })
+        }
+      }
+
+      // 4. Logic giảm giá (voucher + điểm) – giữ nguyên như cũ
       let originalAmount = amount
       let finalAmount = originalAmount
       let discountAmount = 0
       let pointsDiscount = 0
       let appliedVoucher = null
 
-      // 1. Áp dụng Voucher (nếu có)
       if (voucherCode) {
-        const voucherResult = await voucherService.applyVoucher(voucherCode, finalAmount)
-        if (voucherResult.error) {
-          return res.status(400).json({ success: false, message: voucherResult.error })
+        const vResult = await voucherService.applyVoucher(
+          voucherCode,
+          finalAmount
+        )
+        if (vResult.error) {
+          return res
+            .status(400)
+            .json({ success: false, message: vResult.error })
         }
-        finalAmount = voucherResult.finalAmount
-        discountAmount = voucherResult.discount
-        appliedVoucher = voucherResult.voucher
+        finalAmount = vResult.finalAmount
+        discountAmount = vResult.discount
+        appliedVoucher = vResult.voucher
       }
 
-      // 2. Áp dụng Điểm (nếu có)
       if (pointsToSpend > 0) {
         const user = await userModel.findOneById(userId)
         if (pointsToSpend > user.loyaltyPoints) {
-          return res.status(400).json({ success: false, message: 'Not enough loyalty points.' })
+          return res.status(400).json({
+            success: false,
+            message: 'Not enough loyalty points.'
+          })
         }
-        // Giả sử 1 điểm = 1 VND
-        pointsDiscount = Math.min(finalAmount, pointsToSpend) // Không cho giảm quá số tiền còn lại
+        pointsDiscount = Math.min(finalAmount, pointsToSpend)
         finalAmount = Math.max(0, finalAmount - pointsDiscount)
       }
-      // --- KẾT THÚC TÍNH TOÁN ---
 
-      // Create new booking
+      // 5. Tạo booking PENDING với data đã chuẩn hóa
       const bookingData = {
         userId: userIdString,
         showtimeId,
         movieId,
-        seats,
-        combos,
-        originalAmount: originalAmount, // <-- LƯU GIÁ GỐC
-        totalAmount: finalAmount, // <-- LƯU GIÁ CUỐI CÙNG
-        discountAmount: discountAmount, // <-- LƯU GIẢM GIÁ
-        pointsSpent: pointsDiscount, // <-- LƯU ĐIỂM ĐÃ TIÊU
-        voucherCode: voucherCode, // <-- LƯU MÃ VOUCHER
+        seats: seatsForBooking,     // ✅ đúng schema
+        combos: combosForBooking,   // ✅ có price
+        originalAmount,
+        totalAmount: finalAmount,
+        discountAmount,
+        pointsSpent: pointsDiscount,
+        voucherCode,
         paymentMethod: 'momo',
         paymentStatus: 'pending',
         bookingStatus: 'active'
       }
 
       const newBooking = await bookingModel.createNew(bookingData)
-      const bookingId = newBooking.insertedId
+      const bookingId = newBooking.insertedId.toString()
 
-      // Create payment with MoMo
-      const orderInfo = `Booking_${bookingId}_MovieTickets`
-      const paymentResponse = await MomoService.createPayment(finalAmount, orderInfo)
+      // 6. Luôn dùng orderInfo có mã booking để callback đọc được
+      const momoOrderInfo = `Booking_${bookingId}_MovieTickets`
 
-      if (paymentResponse.resultCode !== 0) {
-        // If MoMo payment initialization fails, cancel the booking
-        await bookingModel.cancelBooking(bookingId) // Hủy booking nếu MoMo lỗi
+      const momoRes = await MomoService.createPayment(
+        finalAmount,
+        momoOrderInfo
+      )
+
+      if (momoRes.resultCode !== 0) {
+        console.error('❌ MoMo init failed:', momoRes)
+        await bookingModel.cancelBooking(bookingId)
+
         return res.status(400).json({
           success: false,
           message: 'Failed to initialize MoMo payment',
-          error: paymentResponse.message
+          error: momoRes.message,
+          momo: momoRes
         })
       }
 
-      // --- TRỪ ĐIỂM VÀ TĂNG LƯỢT DÙNG VOUCHER ---
-      // Chỉ thực hiện sau khi tạo đơn hàng thành công
+      // 7. Trừ điểm + tăng usage voucher sau khi MoMo tạo đơn thành công
       if (pointsDiscount > 0) {
-        await userModel.addLoyaltyPoints(userId, -pointsDiscount) // Trừ điểm
+        await userModel.addLoyaltyPoints(userId, -pointsDiscount)
       }
       if (appliedVoucher) {
-        await voucherModel.incrementUsage(appliedVoucher._id) // Tăng lượt dùng voucher
+        await voucherModel.incrementUsage(appliedVoucher._id)
       }
-      // ----------------------------------------
 
       return res.status(200).json({
         success: true,
         data: {
-          bookingId: newBooking.insertedId,
-          paymentUrl: paymentResponse.payUrl,
-          amount: finalAmount, // Trả về số tiền cần thanh toán
-          originalAmount: originalAmount,
+          bookingId,
+          paymentUrl: momoRes.payUrl,
+          qrCodeUrl: momoRes.qrCodeUrl,
+          amount: finalAmount,
+          originalAmount,
           discount: discountAmount + pointsDiscount,
-          orderInfo: orderInfo
+          orderInfo: momoOrderInfo,
+          momoResult: momoRes
         }
       })
     } catch (error) {
-      // console.error('Error initializing MoMo payment:', error)
+      console.error(
+        '❌ Error initializing MoMo payment:',
+        error.response?.data || error.message || error
+      )
       return res.status(500).json({
         success: false,
         message: 'Failed to initialize payment',
-        error: error.message
+        error: error.response?.data || error.message || error
       })
     }
   },
 
+  // callback giữ nguyên như bạn đang có
   handlePaymentCallback: async (req, res) => {
     try {
-      // 1. Xác thực MoMo
       const paymentResult = await MomoService.handlePaymentCallback(req.body)
 
-      // 2. Trích xuất bookingId
       let bookingId = null
-      if (paymentResult && paymentResult.orderInfo) {
-        const parts = paymentResult.orderInfo.split('_')
+      if (paymentResult && paymentResult.data?.orderInfo) {
+        const parts = paymentResult.data.orderInfo.split('_')
         if (parts.length >= 2) bookingId = parts[1]
       }
 
@@ -156,52 +233,49 @@ export const paymentController = {
       if (bookingId) {
         const paymentStatus = paymentResult.success ? 'completed' : 'failed'
 
-        // 3. Cập nhật trạng thái thanh toán
         const updatedBooking = await bookingModel.updatePaymentStatus(
           bookingId,
           paymentStatus,
-          paymentResult.transactionId
+          paymentResult.transId
         )
 
-        // 4. CHỈ CHẠY LOGIC NẾU THANH TOÁN THÀNH CÔNG
         if (paymentStatus === 'completed' && updatedBooking) {
-          // --- 5. ĐOẠN CODE BỊ THIẾU CẦN THÊM VÀO ---
-          // Chuyển đổi định dạng ghế từ object (trong booking) sang string (trong showtime)
-          // Ví dụ: [{ row: 'B', number: 1 }] -> ['B1']
-          const seatNumbers = updatedBooking.seats.map(seat => `${seat.row}${seat.number}`)
+          const seatNumbers = updatedBooking.seats.map(
+            seat => `${seat.row}${seat.number}`
+          )
 
-          // Cập nhật collection 'showtimes'
           await showtimeModel.updateSeatsStatus(
             updatedBooking.showtimeId,
-            seatNumbers, // Truyền mảng đã chuyển đổi
+            seatNumbers,
             'booked',
             null,
             null
           )
-          // -------------------------------------------
 
-          // 6. Gửi thông báo
           const movie = await movieModel.findOneById(updatedBooking.movieId)
-          const frontendBookingUrl = `${env.APP_URL_FRONTEND || 'http://your-frontend-url.com'}/my-tickets/${bookingId}`
+          const frontendBookingUrl = `${
+            env.APP_URL_FRONTEND || 'http://localhost:5173'
+          }/my-tickets/${bookingId}`
+
           await notificationService.createNotification(
             updatedBooking.userId.toString(),
             'ticket',
             'Mua vé thành công!',
-            `Vé của bạn cho phim "${movie ? movie.title : 'Phim'}" đã được xác nhận.`,
+            `Vé của bạn cho phim "${
+              movie ? movie.title : 'Phim'
+            }" đã được xác nhận.`,
             frontendBookingUrl,
             true
           )
 
-          // 7. Cộng điểm tích lũy
-          // (Lưu ý: bookingModel.updatePaymentStatus đã trả về updatedBooking, ta không cần gọi findOneById)
-          if (paymentResult.success && updatedBooking) {
-            const pointsEarned = Math.floor(updatedBooking.totalAmount * 0.1)
-            if (pointsEarned > 0) {
-              await userModel.addLoyaltyPoints(updatedBooking.userId, pointsEarned)
-            }
+          const pointsEarned = Math.floor(updatedBooking.totalAmount * 0.1)
+          if (pointsEarned > 0) {
+            await userModel.addLoyaltyPoints(
+              updatedBooking.userId,
+              pointsEarned
+            )
           }
 
-          // 8. Tạo hóa đơn
           invoice = {
             bookingId: updatedBooking._id,
             userId: updatedBooking.userId,
@@ -216,7 +290,6 @@ export const paymentController = {
         }
       }
 
-      // 9. Trả về phản hồi cho MoMo
       return res.status(200).json({
         partnerCode: req.body.partnerCode,
         orderId: req.body.orderId,
@@ -232,6 +305,7 @@ export const paymentController = {
         invoice
       })
     } catch (error) {
+      console.error('❌ Error in MoMo callback:', error)
       return res.status(500).json({
         success: false,
         message: 'Failed to process payment callback',

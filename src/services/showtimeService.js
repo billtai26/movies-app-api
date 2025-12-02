@@ -70,7 +70,7 @@ const updateShowtime = async (showtimeId, updateData) => {
   const dataToUpdate = {
     startTime: new Date(updateData.startTime)
   }
-  const updatedShowtime = await showtimeModel.update(showtimeId, dataToUpdate)
+  const updatedShowtime = await showtimeModel.findOneById(showtimeId);
   if (!updatedShowtime) {
     throw new Error('Showtime not found or update failed')
   }
