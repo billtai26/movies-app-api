@@ -114,19 +114,52 @@ const getAll = async (filters = {}, pagination = {}) => {
     const { q, cinemaType, cinemaId } = filters
     const { page = 1, limit = 10, skip = 0 } = pagination
 
+    // 1. Tạo query filter như cũ
     let query = { _destroy: false }
     if (q) query.name = { $regex: new RegExp(q, 'i') }
     if (cinemaType) query.cinemaType = cinemaType
     if (cinemaId) query.cinemaId = new ObjectId(cinemaId)
 
+    // 2. Đếm tổng số lượng bản ghi (để phân trang)
     const totalHalls = await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).countDocuments(query)
-    const halls = await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME)
-      .find(query)
-      .project({ seats: 0 }) // Không trả về mảng ghế khi xem danh sách
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray()
+
+    // 3. Thực hiện Aggregate (Lookup sang bảng cinemas)
+    const cursor = await GET_DB().collection(CINEMA_HALL_COLLECTION_NAME).aggregate([
+      { $match: query }, // Lọc theo điều kiện
+
+      // --- KẾT NỐI VỚI BẢNG CINEMAS ---
+      {
+        $lookup: {
+          from: 'cinemas', // Tên collection Rạp trong Database (kiểm tra kỹ tên này trong MongoDB của bạn)
+          localField: 'cinemaId', // Trường liên kết ở bảng hiện tại
+          foreignField: '_id', // Trường liên kết ở bảng cinemas
+          as: 'cinemaDetail' // Tên field tạm chứa kết quả
+        }
+      },
+      // Chuyển mảng cinemaDetail thành object (nếu tìm thấy)
+      { $unwind: { path: '$cinemaDetail', preserveNullAndEmptyArrays: true } },
+
+      // --- CHỌN CÁC TRƯỜNG CẦN LẤY ---
+      {
+        $project: {
+          // Ghi đè cinemaId cũ bằng thông tin rạp đầy đủ
+          cinemaId: '$cinemaDetail',
+          // Các trường khác giữ nguyên
+          name: 1,
+          cinemaType: 1,
+          totalSeats: 1,
+          seatConfig: 1,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      },
+
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ])
+
+    const halls = await cursor.toArray()
 
     return {
       halls,
