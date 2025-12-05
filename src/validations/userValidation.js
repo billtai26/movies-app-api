@@ -98,6 +98,11 @@ const adminUpdateUser = async (req, res, next) => {
     username: Joi.string().min(3).max(50).trim().strict(),
     role: Joi.string().valid('user', 'admin', 'staff'),
     loyaltyPoints: Joi.number().integer().min(0),
+    /// Cho phép gửi password lên, nhưng không bắt buộc (nếu không đổi pass thì không gửi)
+    password: Joi.string().min(6).trim().strict().allow(null, ''),
+    phone: Joi.string().allow(null, ''), // Cho phép sửa SĐT
+    dob: Joi.date().allow(null), // Cho phép sửa Ngày sinh
+    address: Joi.string().allow(null, ''),
     isVerified: Joi.boolean()
     // Admin không được sửa email, pass qua API này
   }).min(1) // Phải có ít nhất 1 trường
