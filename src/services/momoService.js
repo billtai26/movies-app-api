@@ -128,8 +128,10 @@ class MomoService {
     const isValid = this.verifySignature(data)
     if (!isValid) throw new Error('Invalid MoMo signature')
 
+    const resultCode = Number(data.resultCode); // hoặc String(...) === '0'
+
     return {
-      success: data.resultCode === 0,
+      success: resultCode === 0, 
       message: data.message,
       orderId: data.orderId,
       transId: data.transId,
