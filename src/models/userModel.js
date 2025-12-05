@@ -11,7 +11,7 @@ const USER_COLLECTION_SCHEMA = Joi.object({
   email: Joi.string().required().email().trim().strict(),
   googleId: Joi.string().default(null),
   password: Joi.string().allow(null).default(null).min(6).trim().strict(),
-  role: Joi.string().valid('user', 'admin').default('user'), //
+  role: Joi.string().valid('user', 'admin', 'staff').default('user'), //
 
   phone: Joi.string().pattern(/^[0-9]{10,11}$/).default(null).trim().strict(),
   dob: Joi.date().iso().default(null),
