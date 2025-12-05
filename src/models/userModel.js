@@ -88,7 +88,7 @@ const getResetPasswordToken = (user) => {
   const resetToken = crypto.randomBytes(20).toString('hex')
 
   // Băm token và lưu vào CSDL
-  const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex')
+  const hashedToken = crypto.createHash('sha512').update(resetToken).digest('hex')
   // SỬA LẠI DÒNG NÀY
   const expireDate = new Date(Date.now() + 15 * 60 * 1000)
 
