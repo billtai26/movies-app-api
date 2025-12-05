@@ -61,7 +61,7 @@ const updateProfile = async (req, res, next) => {
     username: Joi.string().min(3).max(50).trim().strict(),
     // Không cho phép sửa email, password, role... qua API này
     phone: Joi.string().pattern(/^[0-9]{10,11}$/).trim().strict(),
-    dob: Joi.date().iso(),
+    dob: Joi.date().iso()
   })
   try {
     await correctCondition.validateAsync(req.body, { abortEarly: false })
@@ -79,7 +79,7 @@ const adminCreateUser = async (req, res, next) => {
     username: Joi.string().required().min(3).max(50).trim().strict(),
     email: Joi.string().required().email().trim().strict(),
     password: Joi.string().required().min(6).trim().strict(),
-    role: Joi.string().valid('user', 'admin').optional()
+    role: Joi.string().valid('user', 'admin', 'staff').optional()
   })
   try {
     await condition.validateAsync(req.body, { abortEarly: false })
@@ -96,7 +96,7 @@ const adminUpdateUser = async (req, res, next) => {
   const condition = Joi.object({
     // Admin có thể cập nhật các trường này
     username: Joi.string().min(3).max(50).trim().strict(),
-    role: Joi.string().valid('user', 'admin'),
+    role: Joi.string().valid('user', 'admin', 'staff'),
     loyaltyPoints: Joi.number().integer().min(0),
     isVerified: Joi.boolean()
     // Admin không được sửa email, pass qua API này
