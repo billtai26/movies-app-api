@@ -10,19 +10,26 @@ const client = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1'
 })
 
-// ======================= Kiểm tra xem câu hỏi có liên quan phim không =======================
+// Kiểm tra xem câu hỏi có liên quan phim không
 function isMovieRelated(message = '') {
   const text = message.toLowerCase()
 
   const keywords = [
-    'phim', 'movie', 'đang chiếu', 'sắp chiếu',
-    'rạp', 'đặt vé', 'suất chiếu', 'ghế', 'cinesta'
+    'phim',
+    'movie',
+    'đang chiếu',
+    'sắp chiếu',
+    'rạp',
+    'đặt vé',
+    'suất chiếu',
+    'ghế',
+    'cinesta'
   ]
 
-  return keywords.some(k => text.includes(k))
+  return keywords.some((k) => text.includes(k))
 }
 
-// ======================= Lấy phim từ MongoDB =======================
+// Lấy phim từ MongoDB
 async function fetchMovies() {
   return await GET_DB()
     .collection('movies')
@@ -39,7 +46,7 @@ async function fetchMovies() {
     .toArray()
 }
 
-// ======================= Save chat =======================
+// Save chat
 async function saveChat(userId, userMsg, botMsg) {
   if (!userId) return
   const now = new Date()
@@ -59,7 +66,7 @@ async function saveChat(userId, userMsg, botMsg) {
   })
 }
 
-// ======================= AI trả lời về phim =======================
+// AI trả lời về phim
 async function movieAI(message, movies) {
   const systemPrompt = `
 Bạn là Cinesta AI — trợ lý thông minh của hệ thống đặt vé Cinesta.
@@ -93,7 +100,7 @@ QUAN TRỌNG: Không được bịa thêm phim không có trong danh sách trên
   return completion.choices[0].message.content.trim()
 }
 
-// ======================= AI trả lời bình thường =======================
+// AI trả lời bình thường
 async function generalAI(message) {
   const completion = await client.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
@@ -113,7 +120,7 @@ Không tạo phim hoặc dữ liệu Cinesta trừ khi được hỏi rõ ràng.
   return completion.choices[0].message.content.trim()
 }
 
-// ======================= ROUTE CHÍNH =======================
+// ROUTE CHÍNH
 router.post('/chat', async (req, res) => {
   try {
     const { userId, message } = req.body
@@ -134,7 +141,6 @@ router.post('/chat', async (req, res) => {
     await saveChat(userId, message, reply)
 
     return res.json({ reply })
-
   } catch (err) {
     console.error('AI Chat Error:', err)
     return res.status(500).json({
@@ -143,7 +149,7 @@ router.post('/chat', async (req, res) => {
   }
 })
 
-// ======================= Lịch sử chat =======================
+// Lịch sử chat
 router.get('/history', async (req, res) => {
   try {
     const { userId } = req.query
@@ -151,11 +157,12 @@ router.get('/history', async (req, res) => {
 
     const history = await AIChatModel.findByUser(userId)
 
-    res.json(history.map(h => ({
-      role: h.role,
-      content: h.content
-    })))
-
+    res.json(
+      history.map((h) => ({
+        role: h.role,
+        content: h.content
+      }))
+    )
   } catch (err) {
     res.json([])
   }
