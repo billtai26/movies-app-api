@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import MomoService from '~/services/momoService'
 import { bookingModel } from '~/models/bookingModel'
 import { userModel } from '~/models/userModel'
@@ -17,12 +18,11 @@ export const paymentController = {
       const {
         showtimeId,
         movieId,
-        seats,             // FE: ['B1', 'B2', ...]
-        combos = {},       // FE: { comboId: quantity, ... }
+        seats, // FE: ['B1', 'B2', ...]
+        combos = {}, // FE: { comboId: quantity, ... }
         amount,
         pointsToSpend = 0,
-        voucherCode = null,
-        // orderInfo từ FE KHÔNG dùng cho MoMo để giữ format callback
+        voucherCode = null
       } = req.body
 
       // 1. Validate input cơ bản
@@ -64,16 +64,14 @@ export const paymentController = {
       // showtime.seats: [{ seatNumber, row, number, price, type, status, ... }]
       const selectedSeatNumbers = seats
       const seatsForBooking = selectedSeatNumbers
-        .map(seatNum => {
-          const s = showtime.seats.find(seat => seat.seatNumber === seatNum)
+        .map((seatNum) => {
+          const s = showtime.seats.find((seat) => seat.seatNumber === seatNum)
           if (!s) return null
 
           // 👇 CHỈ GIỮ row, number, price cho đúng Joi
           return {
             row: s.row ?? String(s.seatNumber)[0],
-            number:
-              s.number ??
-              parseInt(String(s.seatNumber).slice(1), 10),
+            number: s.number ?? parseInt(String(s.seatNumber).slice(1), 10),
             price: s.price
           }
         })
@@ -90,8 +88,7 @@ export const paymentController = {
       let combosForBooking = []
 
       if (Array.isArray(combos)) {
-        // Nếu FE sau này gửi đúng dạng array thì giữ nguyên, nhưng
-        // vẫn đảm bảo có price
+        // Nếu FE sau này gửi đúng dạng array thì giữ nguyên, nhưng vẫn đảm bảo có price
         combosForBooking = combos
       } else if (combos && typeof combos === 'object') {
         const entries = Object.entries(combos).filter(
@@ -110,7 +107,7 @@ export const paymentController = {
         }
       }
 
-      // 4. Logic giảm giá (voucher + điểm) – giữ nguyên như cũ
+      // 4. Logic giảm giá (voucher + điểm)
       let originalAmount = amount
       let finalAmount = originalAmount
       let discountAmount = 0
@@ -149,8 +146,8 @@ export const paymentController = {
         userId: userIdString,
         showtimeId,
         movieId,
-        seats: seatsForBooking,     // ✅ đúng schema
-        combos: combosForBooking,   // ✅ có price
+        seats: seatsForBooking, // ✅ đúng schema
+        combos: combosForBooking, // ✅ có price
         originalAmount,
         totalAmount: finalAmount,
         discountAmount,
@@ -167,10 +164,7 @@ export const paymentController = {
       // 6. Luôn dùng orderInfo có mã booking để callback đọc được
       const momoOrderInfo = `Booking_${bookingId}_MovieTickets`
 
-      const momoRes = await MomoService.createPayment(
-        finalAmount,
-        momoOrderInfo
-      )
+      const momoRes = await MomoService.createPayment(finalAmount, momoOrderInfo)
 
       if (momoRes.resultCode !== 0) {
         console.error('❌ MoMo init failed:', momoRes)
@@ -218,7 +212,6 @@ export const paymentController = {
     }
   },
 
-  // callback giữ nguyên như bạn đang có
   handlePaymentCallback: async (req, res) => {
     try {
       const paymentResult = await MomoService.handlePaymentCallback(req.body)
@@ -230,6 +223,7 @@ export const paymentController = {
       }
 
       let invoice = null
+
       if (bookingId) {
         const paymentStatus = paymentResult.success ? 'completed' : 'failed'
 
@@ -240,17 +234,26 @@ export const paymentController = {
         )
 
         if (paymentStatus === 'completed' && updatedBooking) {
-          const seatNumbers = updatedBooking.seats.map(
-            seat => `${seat.row}${seat.number}`
-          )
+          const seatNumbers = (updatedBooking.seats || [])
+            .map((seat) => {
+              if (!seat) return ''
+              if (typeof seat === 'string') return seat
+              if (seat.label) return seat.label
+              if (seat.seatNumber) return seat.seatNumber
+              if (seat.row && seat.number != null) return `${seat.row}${seat.number}`
+              return ''
+            })
+            .filter(Boolean)
 
-          await showtimeModel.updateSeatsStatus(
-            updatedBooking.showtimeId,
-            seatNumbers,
-            'booked',
-            null,
-            null
-          )
+          if (seatNumbers.length) {
+            await showtimeModel.updateSeatsStatus(
+              updatedBooking.showtimeId,
+              seatNumbers,
+              'booked',
+              null,
+              null
+            )
+          }
 
           const movie = await movieModel.findOneById(updatedBooking.movieId)
           const frontendBookingUrl = `${
@@ -268,29 +271,29 @@ export const paymentController = {
             true
           )
 
-          const pointsEarned = Math.floor(updatedBooking.totalAmount * 0.1)
-          if (pointsEarned > 0) {
-            await userModel.addLoyaltyPoints(
-              updatedBooking.userId,
-              pointsEarned
-            )
-          }
+          if (paymentResult.success) {
+            const pointsEarned = Math.floor(updatedBooking.totalAmount * 0.1)
+            if (pointsEarned > 0) {
+              await userModel.addLoyaltyPoints(updatedBooking.userId, pointsEarned)
+            }
 
-          invoice = {
-            bookingId: updatedBooking._id,
-            userId: updatedBooking.userId,
-            showtimeId: updatedBooking.showtimeId,
-            movieId: updatedBooking.movieId,
-            seats: updatedBooking.seats,
-            combos: updatedBooking.combos || [],
-            totalAmount: updatedBooking.totalAmount,
-            paymentStatus: updatedBooking.paymentStatus,
-            createdAt: updatedBooking.createdAt
+            invoice = {
+              bookingId: updatedBooking._id,
+              userId: updatedBooking.userId,
+              showtimeId: updatedBooking.showtimeId,
+              movieId: updatedBooking.movieId,
+              seats: updatedBooking.seats,
+              combos: updatedBooking.combos || [],
+              totalAmount: updatedBooking.totalAmount,
+              paymentStatus: updatedBooking.paymentStatus,
+              createdAt: updatedBooking.createdAt
+            }
           }
         }
       }
 
       return res.status(200).json({
+        success: paymentResult.success,
         partnerCode: req.body.partnerCode,
         orderId: req.body.orderId,
         requestId: req.body.requestId,
