@@ -7,6 +7,8 @@ import Joi from 'joi'
 const adminCreateNew = async (req, res, next) => {
   const condition = Joi.object({
     code: Joi.string().required().uppercase().trim().strict(),
+    desc: Joi.string().allow(null, '').optional(), // Cho phép gửi mô tả
+    title: Joi.string().allow(null, '').optional(), // Thêm luôn title nếu cần
     discountType: Joi.string().valid('fixed', 'percent').required(),
     discountValue: Joi.number().required().min(0),
     maxDiscountAmount: Joi.number().allow(null).when('discountType', {
@@ -33,6 +35,8 @@ const adminCreateNew = async (req, res, next) => {
 const adminUpdate = async (req, res, next) => {
   const condition = Joi.object({
     // Cho phép sửa mọi thứ ngoại trừ 'code'
+    desc: Joi.string().allow(null, '').optional(),
+    title: Joi.string().allow(null, '').optional(),
     discountType: Joi.string().valid('fixed', 'percent'),
     discountValue: Joi.number().min(0),
     maxDiscountAmount: Joi.number().allow(null),

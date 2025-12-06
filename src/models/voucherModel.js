@@ -5,6 +5,8 @@ import { GET_DB } from '~/config/mongodb'
 const VOUCHER_COLLECTION_NAME = 'vouchers'
 const VOUCHER_COLLECTION_SCHEMA = Joi.object({
   code: Joi.string().required().uppercase().trim().strict(),
+  desc: Joi.string().allow(null, '').default(''),
+  title: Joi.string().allow(null, '').default(''),
   discountType: Joi.string().valid('fixed', 'percent').required(), // 'fixed': giảm thẳng tiền, 'percent': giảm %
   discountValue: Joi.number().required().min(0),
   maxDiscountAmount: Joi.number().allow(null), // Giới hạn giảm tối đa (cho 'percent')
