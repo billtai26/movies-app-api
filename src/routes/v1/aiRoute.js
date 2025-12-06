@@ -10,23 +10,16 @@ const client = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1'
 })
 
-// Kiểm tra xem câu hỏi có liên quan phim không
+// ======================= Kiểm tra xem câu hỏi có liên quan phim không =======================
 function isMovieRelated(message = '') {
   const text = message.toLowerCase()
 
   const keywords = [
-    'phim',
-    'movie',
-    'đang chiếu',
-    'sắp chiếu',
-    'rạp',
-    'đặt vé',
-    'suất chiếu',
-    'ghế',
-    'cinesta'
+    'phim', 'movie', 'đang chiếu', 'sắp chiếu',
+    'rạp', 'đặt vé', 'suất chiếu', 'ghế', 'cinesta'
   ]
 
-  return keywords.some((k) => text.includes(k))
+  return keywords.some(k => text.includes(k))
 }
 
 // Lấy phim từ MongoDB
@@ -120,7 +113,7 @@ Không tạo phim hoặc dữ liệu Cinesta trừ khi được hỏi rõ ràng.
   return completion.choices[0].message.content.trim()
 }
 
-// ROUTE CHÍNH
+// ======================= ROUTE CHÍNH =======================
 router.post('/chat', async (req, res) => {
   try {
     const { userId, message } = req.body
@@ -141,7 +134,9 @@ router.post('/chat', async (req, res) => {
     await saveChat(userId, message, reply)
 
     return res.json({ reply })
+
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error('AI Chat Error:', err)
     return res.status(500).json({
       reply: 'Xin lỗi, Cinesta AI đang gặp lỗi.'
@@ -149,7 +144,7 @@ router.post('/chat', async (req, res) => {
   }
 })
 
-// Lịch sử chat
+// ======================= Lịch sử chat =======================
 router.get('/history', async (req, res) => {
   try {
     const { userId } = req.query
@@ -157,12 +152,11 @@ router.get('/history', async (req, res) => {
 
     const history = await AIChatModel.findByUser(userId)
 
-    res.json(
-      history.map((h) => ({
-        role: h.role,
-        content: h.content
-      }))
-    )
+    res.json(history.map(h => ({
+      role: h.role,
+      content: h.content
+    })))
+
   } catch (err) {
     res.json([])
   }

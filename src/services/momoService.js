@@ -1,8 +1,9 @@
+/* eslint-disable no-console */
 import crypto from 'crypto'
 import axios from 'axios'
 
 class MomoService {
-  constructor() {
+  constructor () {
     this.accessKey = 'F8BBA842ECF85'
     this.secretKey = 'K951B6PE1waDMi640xX08PD3vg6EkVlz'
     this.partnerCode = 'MOMO'
@@ -127,8 +128,10 @@ class MomoService {
     const isValid = this.verifySignature(data)
     if (!isValid) throw new Error('Invalid MoMo signature')
 
+    const resultCode = Number(data.resultCode) // hoặc String(...) === '0'
+
     return {
-      success: data.resultCode === 0,
+      success: resultCode === 0,
       message: data.message,
       orderId: data.orderId,
       transId: data.transId,
