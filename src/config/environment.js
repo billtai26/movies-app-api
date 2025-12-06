@@ -21,5 +21,6 @@ export const env = {
 
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-  APP_URL: process.env.APP_URL // Thêm biến APP_URL
+  APP_URL: process.env.APP_URL, // Thêm biến APP_URL
+  GROQ_API_KEY: process.env.GROQ_API_KEY
 }
