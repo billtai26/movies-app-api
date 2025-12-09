@@ -6,7 +6,7 @@ import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants'
 // Define Collection Name & Schema
 const NOTIFICATION_COLLECTION_NAME = 'notifications'
 const NOTIFICATION_COLLECTION_SCHEMA = Joi.object({
-  userId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+  userId: Joi.string().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE).allow(null, ''),
 
   // Phân loại: 'ticket' (vé), 'promotion' (khuyến mãi), 'new_movie' (phim mới), 'system' (hệ thống)
   type: Joi.string().valid('ticket', 'promotion', 'new_movie', 'system').required(),
@@ -25,11 +25,16 @@ const NOTIFICATION_COLLECTION_SCHEMA = Joi.object({
 
 const createNew = async (data) => {
   try {
-    const validData = await NOTIFICATION_COLLECTION_SCHEMA.validateAsync(data, { abortEarly: false })
+    const validData = await NOTIFICATION_COLLECTION_SCHEMA.validateAsync(data, {
+      abortEarly: false
+    })
+
+    // 2. Logic chuyển đổi: Nếu có userId (string) thì ép kiểu sang ObjectId, nếu null thì giữ nguyên null
     const dataToInsert = {
       ...validData,
-      userId: new ObjectId(validData.userId)
+      userId: validData.userId ? new ObjectId(validData.userId) : null
     }
+
     const result = await GET_DB().collection(NOTIFICATION_COLLECTION_NAME).insertOne(dataToInsert)
     return result
   } catch (error) { throw new Error(error) }
@@ -49,7 +54,13 @@ const findOneById = async (id) => {
  */
 const findByUserId = async (userId, page, limit) => {
   try {
-    const query = { userId: new ObjectId(userId), _destroy: false }
+    const query = {
+      _destroy: false,
+      $or: [
+        { userId: new ObjectId(userId) },
+        { userId: null } // Lấy thêm tin hệ thống
+      ]
+    }
 
     const pageNumber = Math.max(1, parseInt(page) || 1)
     const limitNumber = Math.max(1, parseInt(limit) || 10)
@@ -59,7 +70,7 @@ const findByUserId = async (userId, page, limit) => {
 
     const notifications = await GET_DB().collection(NOTIFICATION_COLLECTION_NAME)
       .find(query)
-      .sort({ createdAt: -1 }) // Tin mới nhất lên đầu
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNumber)
       .toArray()

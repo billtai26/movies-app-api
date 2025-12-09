@@ -1,17 +1,33 @@
 import Joi from 'joi'
-import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants'
+// import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants'
 
 /**
  * (Admin) Validation khi tạo thông báo thủ công
  */
 const adminCreateNew = async (req, res, next) => {
   const condition = Joi.object({
-    userId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
-    type: Joi.string().valid('promotion', 'system').required(), // Admin chỉ nên gửi 2 loại này
+    type: Joi.string().valid('ticket', 'promotion', 'new_movie', 'system').required(),
     title: Joi.string().required().min(3).max(100).trim().strict(),
     message: Joi.string().required().min(3).max(500).trim().strict(),
-    link: Joi.string().uri().allow(null, '').optional()
+    link: Joi.string().uri().allow(null, '').optional(),
+
+    // 1. Thêm validation cho target
+    target: Joi.string().valid('all', 'user', 'staff').default('user'),
+
+    // 2. XOÁ validation userId cũ đi (vì Frontend không gửi cái này nữa)
+    // userId: Joi.string().required().pattern(OBJECT_ID_RULE)... <--- XOÁ DÒNG NÀY
+
+    // 3. THAY THẾ bằng validation username
+    username: Joi.string().trim().min(3).max(50)
+      .when('target', {
+        is: 'user',
+        then: Joi.required().messages({
+          'any.required': 'Vui lòng nhập Username người nhận khi chọn đối tượng là User'
+        }),
+        otherwise: Joi.optional().allow(null, '')
+      })
   })
+
   try {
     await condition.validateAsync(req.body, { abortEarly: false })
     next()
