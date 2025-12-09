@@ -71,10 +71,28 @@ const markNotificationAsRead = async (notificationId, userId) => {
  * HÀM MỚI: (Admin) Tạo thông báo thủ công
  */
 const adminCreateNotification = async (reqBody) => {
-  const { userId, type, title, message, link } = reqBody
-  // Gọi hàm createNotification lõi
-  // (true = có gửi email cho thông báo khuyến mãi/hệ thống)
-  return await createNotification(userId, type, title, message, link, true)
+  const { target, username, ...otherData } = reqBody
+
+  let targetUserId = null
+
+  if (target === 'user') {
+    // Tìm user bằng username
+    const user = await userModel.findByUsername(username)
+    if (!user) {
+      throw new ApiError(404, `Không tìm thấy người dùng: ${username}`)
+    }
+
+    // 3. QUAN TRỌNG: Chuyển ObjectId sang String
+    // Joi.string() chỉ nhận chuỗi, nếu đưa object vào sẽ lỗi
+    targetUserId = user._id.toString()
+  }
+
+  const newNotificationData = {
+    ...otherData,
+    userId: targetUserId // String hoặc null
+  }
+
+  return await notificationModel.createNew(newNotificationData)
 }
 
 /**

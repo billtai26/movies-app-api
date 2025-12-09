@@ -204,6 +204,16 @@ const addLoyaltyPoints = async (userId, points) => {
   } catch (error) { throw new Error(error) }
 }
 
+// Thêm hàm này vào userModel
+const findByUsername = async (username) => {
+  try {
+    // Tìm chính xác theo username (không phân biệt hoa thường nếu cần thì thêm collation)
+    return await GET_DB().collection(USER_COLLECTION_NAME).findOne({
+      username: username
+    })
+  } catch (error) { throw new Error(error) }
+}
+
 export const userModel = {
   USER_COLLECTION_NAME,
   USER_COLLECTION_SCHEMA,
@@ -217,5 +227,6 @@ export const userModel = {
   findOneByValidVerificationToken,
   deleteOneById,
   getAllUsers,
-  addLoyaltyPoints
+  addLoyaltyPoints,
+  findByUsername
 }
