@@ -274,5 +274,29 @@ export const bookingController = {
     } catch (error) {
       next(error)
     }
+  },
+
+  // [THÊM HÀM MỚI VÀO ĐÂY]
+  getBookingDetailForUser: async (req, res) => {
+    try {
+      const { id } = req.params
+      const userId = req.user._id
+
+      // SỬA DÒNG NÀY: Dùng findDetailById thay vì findOneById
+      const booking = await bookingModel.findDetailById(id)
+
+      if (!booking) {
+        return res.status(404).json({ success: false, message: 'Booking not found' })
+      }
+
+      // Kiểm tra quyền sở hữu
+      if (booking.userId.toString() !== userId.toString()) {
+        return res.status(403).json({ success: false, message: 'Unauthorized' })
+      }
+
+      return res.status(200).json(booking)
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
   }
 }

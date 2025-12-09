@@ -7,6 +7,7 @@ const Router = express.Router()
 // POST /v1/comments (Thêm bình luận mới - Yêu cầu đăng nhập)
 Router.route('/')
   .post(protect, commentController.createComment)
+  .get(protect, commentController.getAllComments)
 
 // GET /v1/comments/movie/:movieId (Lấy tất cả bình luận của 1 phim - Công khai)
 Router.route('/movie/:movieId')

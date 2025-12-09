@@ -326,6 +326,57 @@ const markAsUsed = async (id) => {
   }
 }
 
+/**
+ * HÀM MỚI: Lấy chi tiết vé kèm thông tin Phim, Rạp, Suất chiếu
+ */
+const findDetailById = async (id) => {
+  try {
+    const result = await GET_DB().collection(BOOKING_COLLECTION_NAME).aggregate([
+      { $match: { _id: new ObjectId(id) } },
+
+      // 1. Join lấy thông tin Phim (movie)
+      { $lookup: {
+        from: 'movies',
+        localField: 'movieId',
+        foreignField: '_id',
+        as: 'movie'
+      } },
+      { $unwind: { path: '$movie', preserveNullAndEmptyArrays: true } },
+
+      // 2. Join lấy thông tin Suất chiếu (showtime)
+      { $lookup: {
+        from: 'showtimes',
+        localField: 'showtimeId',
+        foreignField: '_id',
+        as: 'showtime'
+      } },
+      { $unwind: { path: '$showtime', preserveNullAndEmptyArrays: true } },
+
+      // 3. Join lấy thông tin Rạp (cinema) từ showtime.cinemaId
+      { $lookup: {
+        from: 'cinemas',
+        localField: 'showtime.cinemaId',
+        foreignField: '_id',
+        as: 'cinema'
+      } },
+      { $unwind: { path: '$cinema', preserveNullAndEmptyArrays: true } },
+
+      // 4. Join lấy thông tin Phòng chiếu (room/cinemaHall) từ showtime.theaterId
+      { $lookup: {
+        from: 'cinemahalls',
+        localField: 'showtime.theaterId',
+        foreignField: '_id',
+        as: 'room'
+      } },
+      { $unwind: { path: '$room', preserveNullAndEmptyArrays: true } }
+    ]).toArray()
+
+    return result[0] || null
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
 export const bookingModel = {
   BOOKING_COLLECTION_NAME,
   BOOKING_COLLECTION_SCHEMA,
@@ -340,5 +391,6 @@ export const bookingModel = {
   getAll,
   softDelete,
   addCombosAndUpdateAmount,
-  markAsUsed
+  markAsUsed,
+  findDetailById
 }

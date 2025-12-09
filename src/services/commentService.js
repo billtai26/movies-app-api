@@ -86,8 +86,9 @@ const getCommentById = async (id) => {
 /**
  * Cập nhật comment
  */
-const updateComment = async (id, content) => {
-  const updated = await commentModel.updateById(id, { content })
+// Sửa tham số thứ 2 từ 'content' thành 'data'
+const updateComment = async (id, data) => {
+  const updated = await commentModel.updateById(id, data) // Truyền nguyên object data
 
   try {
     const io = getIO()
@@ -95,7 +96,7 @@ const updateComment = async (id, content) => {
       io.to(updated.movieId.toString()).emit('update_comment', updated)
     }
   } catch (error) {
-    // ignore socket errors
+    // ignore
   }
 
   return updated
@@ -119,10 +120,16 @@ const deleteComment = async (id) => {
   return deleted
 }
 
+// --- THÊM HÀM NÀY ---
+const getAllComments = async () => {
+  return await commentModel.getAll()
+}
+
 export const commentService = {
   createComment,
   getCommentsByMovie,
   updateComment,
   getCommentById,
-  deleteComment
+  deleteComment,
+  getAllComments
 }

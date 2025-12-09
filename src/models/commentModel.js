@@ -8,6 +8,7 @@ const COMMENT_COLLECTION_SCHEMA = Joi.object({
   userId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
   movieId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
   content: Joi.string().required().min(1).max(1000).trim().strict(),
+  status: Joi.string().valid('shown', 'hidden').default('shown'),
 
   // parentId dùng để liên kết với bình luận cha (nếu là reply)
   // Nếu là bình luận gốc, parentId = null
@@ -55,7 +56,8 @@ const findByMovieId = async (movieId) => {
   return await GET_DB().collection(COMMENT_COLLECTION_NAME).aggregate([
     { $match: {
       movieId: new ObjectId(movieId),
-      _destroy: false
+      _destroy: false,
+      status: 'shown'
     }
     },
     { $sort: { createdAt: 1 } }, // Sắp xếp từ cũ đến mới
@@ -102,10 +104,41 @@ const markDeleteById = async (id) => {
   return deleted
 }
 
+const getAll = async () => {
+  return await GET_DB().collection(COMMENT_COLLECTION_NAME).aggregate([
+    { $sort: { createdAt: -1 } }, // Sắp xếp mới nhất lên đầu
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user',
+        pipeline: [
+          { $project: { username: 1, email: 1 } } // Lấy tên và email người bình luận
+        ]
+      }
+    },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: 'movies',
+        localField: 'movieId',
+        foreignField: '_id',
+        as: 'movie',
+        pipeline: [
+          { $project: { title: 1 } } // Lấy tên phim
+        ]
+      }
+    },
+    { $unwind: { path: '$movie', preserveNullAndEmptyArrays: true } }
+  ]).toArray()
+}
+
 export const commentModel = {
   createNew,
   findOneById,
   findByMovieId,
   updateById,
-  markDeleteById
+  markDeleteById,
+  getAll
 }

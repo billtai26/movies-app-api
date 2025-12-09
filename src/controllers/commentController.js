@@ -53,14 +53,10 @@ const updateComment = async (req, res, next) => {
   try {
     const userId = req.user._id.toString()
     const id = req.params.id
-    const { content } = req.body
+    const { content, status } = req.body // <--- Lấy thêm status
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ errors: 'Invalid Comment ID format' })
-    }
-
-    if (!content || typeof content !== 'string') {
-      return res.status(400).json({ errors: 'content is required' })
     }
 
     const comment = await commentService.getCommentById(id)
@@ -68,12 +64,25 @@ const updateComment = async (req, res, next) => {
       return res.status(404).json({ errors: 'Comment not found' })
     }
 
-    // Kiểm tra quyền: chủ bình luận hoặc admin
-    if (comment.userId.toString() !== userId && req.user.role !== 'admin') {
-      return res.status(403).json({ errors: 'Not authorized to update this comment' })
+    // Chuẩn bị dữ liệu update
+    const updateData = {}
+
+    // Nếu là Admin thì cho phép sửa status
+    if (req.user.role === 'admin' && status) {
+      updateData.status = status
     }
 
-    const updated = await commentService.updateComment(id, content)
+    // Nếu người dùng sửa nội dung (hoặc admin sửa)
+    if (content) {
+      // Logic kiểm tra quyền chủ sở hữu comment
+      if (comment.userId.toString() !== userId && req.user.role !== 'admin') {
+        return res.status(403).json({ errors: 'Not authorized' })
+      }
+      updateData.content = content
+    }
+
+    // Gọi service
+    const updated = await commentService.updateComment(id, updateData)
     res.status(200).json(updated)
   } catch (error) {
     next(error)
@@ -105,10 +114,20 @@ const deleteComment = async (req, res, next) => {
   }
 }
 
+const getAllComments = async (req, res, next) => {
+  try {
+    const comments = await commentService.getAllComments()
+    res.status(200).json(comments)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const commentController = {
   createComment,
   getCommentsByMovie,
   getCommentById,
   updateComment,
-  deleteComment
+  deleteComment,
+  getAllComments
 }

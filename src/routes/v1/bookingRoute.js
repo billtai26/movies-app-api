@@ -14,6 +14,9 @@ Router.route('/')
 // Get booking history for the authenticated user
 Router.route('/history').get(protect, bookingController.getBookingHistory)
 
+// [THÊM MỚI] Route lấy chi tiết 1 vé cho User (kiểm tra sở hữu)
+Router.route('/history/:id').get(protect, bookingController.getBookingDetailForUser)
+
 // Print ticket at the counter
 Router.route('/print/:bookingId').get(protect, bookingController.printTicket)
 
