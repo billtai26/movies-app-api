@@ -29,9 +29,51 @@ const deleteItem = async (req, res, next) => {
   } catch (error) { next(error) }
 }
 
+const getReports = async (req, res, next) => {
+  try {
+    // Lấy query params từ frontend (ví dụ: ?fromDate=...&toDate=...)
+    const { fromDate, toDate } = req.query
+
+    const reportData = await staffReportService.getReports(fromDate, toDate)
+
+    res.status(200).json(reportData)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Controller lấy thống kê
+const getStats = async (req, res, next) => {
+  try {
+    const { fromDate, toDate } = req.query
+    const stats = await staffReportService.getStats(fromDate, toDate)
+    res.status(200).json(stats)
+  } catch (error) { next(error) }
+}
+
+// Controller lấy danh sách báo cáo
+const getAllReports = async (req, res, next) => {
+  try {
+    const reports = await staffReportService.getAllReports()
+    res.status(200).json(reports)
+  } catch (error) { next(error) }
+}
+
+// Controller tạo báo cáo mới
+const createReport = async (req, res, next) => {
+  try {
+    const newReport = await staffReportService.createReport(req.body)
+    res.status(201).json(newReport)
+  } catch (error) { next(error) }
+}
+
 export const staffReportController = {
   createNew,
   getAll,
   update,
-  deleteItem
+  deleteItem,
+  getReports,
+  getStats,
+  getAllReports,
+  createReport
 }

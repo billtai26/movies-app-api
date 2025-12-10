@@ -214,7 +214,7 @@ const update = async (id, data) => {
 }
 
 /**
- * HÀM MỚI: (Admin) Lấy danh sách, lọc, phân trang
+ * HÀM MỚI (ĐÃ SỬA): (Admin) Lấy danh sách dùng Aggregate để join bảng
  */
 const getAll = async (filters = {}, pagination = {}) => {
   try {
@@ -223,31 +223,74 @@ const getAll = async (filters = {}, pagination = {}) => {
 
     let query = { _destroy: false }
 
-    // Lọc theo các ID
     if (userId) query.userId = new ObjectId(userId)
     if (movieId) query.movieId = new ObjectId(movieId)
-
-    // Lọc theo trạng thái
     if (paymentStatus) query.paymentStatus = paymentStatus
     if (bookingStatus) query.bookingStatus = bookingStatus
 
-    // Lọc theo ngày TẠO vé (createdAt)
     if (createdAtDate) {
-      const startDate = new Date(createdAtDate + 'T00:00:00+07:00') // Giờ VN
-      const endDate = new Date(createdAtDate + 'T23:59:59+07:00') // Giờ VN
+      const startDate = new Date(createdAtDate + 'T00:00:00+07:00')
+      const endDate = new Date(createdAtDate + 'T23:59:59+07:00')
       query.createdAt = { $gte: startDate, $lte: endDate }
     }
 
-    // 1. Truy vấn lấy tổng số document
+    // 1. Lấy tổng số lượng
     const totalBookings = await GET_DB().collection(BOOKING_COLLECTION_NAME).countDocuments(query)
 
-    // 2. Truy vấn lấy data (có phân trang)
-    const bookings = await GET_DB().collection(BOOKING_COLLECTION_NAME)
-      .find(query)
-      .sort({ createdAt: -1 }) // Sắp xếp vé mới nhất lên đầu
-      .skip(skip)
-      .limit(limit)
-      .toArray()
+    // 2. Lấy dữ liệu chi tiết bằng Aggregate
+    const bookings = await GET_DB().collection(BOOKING_COLLECTION_NAME).aggregate([
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+
+      // Join Phim để lấy tên
+      { $lookup: {
+        from: 'movies',
+        localField: 'movieId',
+        foreignField: '_id',
+        as: 'movieDetail'
+      } },
+      { $unwind: { path: '$movieDetail', preserveNullAndEmptyArrays: true } },
+
+      // Join Suất chiếu để lấy giờ & rạp
+      { $lookup: {
+        from: 'showtimes',
+        localField: 'showtimeId',
+        foreignField: '_id',
+        as: 'showtimeDetail'
+      } },
+      { $unwind: { path: '$showtimeDetail', preserveNullAndEmptyArrays: true } },
+
+      // Join Rạp (Cinema) từ showtimeDetail
+      { $lookup: {
+        from: 'cinemas',
+        localField: 'showtimeDetail.cinemaId',
+        foreignField: '_id',
+        as: 'cinemaDetail'
+      } },
+      { $unwind: { path: '$cinemaDetail', preserveNullAndEmptyArrays: true } },
+
+      // Format dữ liệu trả về cho đẹp (Flatten)
+      { $project: {
+        _id: 1,
+        userId: 1,
+        bookingStatus: 1,
+        paymentStatus: 1,
+        totalAmount: 1,
+        seats: 1,
+        isUsed: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        transactionId: 1,
+        // Mapping các trường Frontend cần
+        code: '$transactionId', // Gán transactionId thành code
+        movieTitle: '$movieDetail.title',
+        theaterName: '$cinemaDetail.name',
+        startTime: '$showtimeDetail.startTime',
+        posterUrl: '$movieDetail.posterUrl'
+      } }
+    ]).toArray()
 
     return {
       bookings,

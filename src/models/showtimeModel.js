@@ -53,54 +53,64 @@ const findOneById = async (id) => {
  * ===== ĐÂY LÀ HÀM ĐƯỢC CHỈNH SỬA ĐỂ LỌC THEO MẢNG ID PHÒNG CHIẾU =====
  * ====================================================================
  */
+/**
+ * HÀM ĐÃ SỬA: Lấy danh sách kèm tên Phòng (lookup cinemahalls)
+ */
 const getAll = async ({ filters = {}, pagination = {} }) => {
   try {
-    // 1. Lấy ra theaterIds (mảng) thay vì theaterId (string)
     const { movieId, theaterIds, date } = filters
+    // eslint-disable-next-line no-unused-vars
     const { page = 1, limit = 10, skip = 0 } = pagination
 
     let query = { _destroy: false }
 
     if (movieId) query.movieId = new ObjectId(movieId)
 
-    // ---- LOGIC MỚI ĐỂ LỌC THEO MẢNG ID ----
-    // Nếu service gửi lên một mảng các ID phòng chiếu (theaterIds)
+    // Logic lọc theo mảng theaterIds (nếu có)
     if (theaterIds && theaterIds.length > 0) {
-      // Dùng $in để lọc tất cả suất chiếu có theaterId NẰM TRONG mảng này
       query.theaterId = { $in: theaterIds }
     }
-    // ---- KẾT THÚC LOGIC MỚI ----
 
-    // Lọc theo ngày (Rất quan trọng)
+    // Logic lọc theo ngày (nếu có)
     if (date) {
-      // Bắt đầu ngày (local): 2025-11-29 00:00:00 (Local)
       const startDate = new Date(date + 'T00:00:00')
-
-      // Kết thúc ngày (local): 2025-11-29 23:59:59 (Local)
       const endDate = new Date(date + 'T23:59:59.999')
-
-      query.startTime = {
-        $gte: startDate,
-        $lte: endDate
-      }
+      query.startTime = { $gte: startDate, $lte: endDate }
     }
 
-    // 1. Truy vấn lấy tổng số document
-    const totalShowtimes = await GET_DB().collection(SHOWTIME_COLLECTION_NAME).countDocuments(query)
+    // --- QUAN TRỌNG: Dùng Aggregate để lấy tên phòng ---
+    const showtimes = await GET_DB().collection(SHOWTIME_COLLECTION_NAME).aggregate([
+      { $match: query },
 
-    // 2. Truy vấn lấy data (có phân trang)
-    const showtimes = await GET_DB().collection(SHOWTIME_COLLECTION_NAME)
-      .find(query)
-      .sort({ startTime: 1 }) // Sắp xếp theo suất chiếu sớm nhất
-      .skip(skip)
-      .limit(limit)
-      .toArray()
+      // 1. Join với bảng 'cinemahalls' để lấy thông tin phòng chiếu từ 'theaterId'
+      { $lookup: {
+        from: 'cinemaHalls', // Tên collection phòng chiếu trong DB
+        localField: 'theaterId', // Field trong showtime
+        foreignField: '_id', // Field trong cinemahalls
+        as: 'room' // Kết quả sẽ nằm trong field 'room'
+      } },
+      { $unwind: { path: '$room', preserveNullAndEmptyArrays: true } },
 
+      // 2. (Tuỳ chọn) Join với bảng 'cinemas' để lấy tên rạp
+      { $lookup: {
+        from: 'cinemas',
+        localField: 'cinemaId',
+        foreignField: '_id',
+        as: 'cinema'
+      } },
+      { $unwind: { path: '$cinema', preserveNullAndEmptyArrays: true } },
+
+      { $sort: { startTime: 1 } }
+      // { $skip: skip }, // Nếu cần phân trang thì mở lại
+      // { $limit: limit }
+    ]).toArray()
+
+    // Trả về định dạng cũ để Frontend không bị lỗi
     return {
-      showtimes,
+      showtimes, // Frontend đang đọc biến này
       pagination: {
-        totalShowtimes,
-        totalPages: Math.ceil(totalShowtimes / limit),
+        totalShowtimes: showtimes.length, // Tạm thời tính tổng theo mảng trả về
+        totalPages: 1,
         currentPage: page,
         limit
       }

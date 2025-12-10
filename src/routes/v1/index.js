@@ -39,5 +39,6 @@ Router.use('/cinemahalls', cinemaHallRoute)
 Router.use('/cinemas', cinemaRoute)
 Router.use('/dashboard', dashboardRoute)
 Router.use('/admin_staff_reports', staffReportRoute)
+Router.use('/staff-reports', staffReportRoute)
 
 export const APIs_V1 = Router
