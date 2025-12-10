@@ -23,7 +23,7 @@ Router.route('/')
 
 // Sửa và Xoá
 Router.route('/:id')
-  .patch(protect, admin, genreValidation.update, genreController.updateGenre)
+  .put(protect, admin, genreValidation.update, genreController.updateGenre)
   .delete(protect, admin, genreController.deleteGenre)
 
 export const genreRoute = Router
