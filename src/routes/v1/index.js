@@ -16,6 +16,7 @@ import { genreRoute } from '~/routes/v1/genreRoute'
 import { cinemaHallRoute } from '~/routes/v1/cinemaHallRoute'
 import { cinemaRoute } from '~/routes/v1/cinemaRoute'
 import { dashboardRoute } from '~/routes/v1/dashboardRoute'
+import { staffReportRoute } from './staffReportRoute'
 
 const Router = express.Router()
 
@@ -37,5 +38,6 @@ Router.use('/genres', genreRoute)
 Router.use('/cinemahalls', cinemaHallRoute)
 Router.use('/cinemas', cinemaRoute)
 Router.use('/dashboard', dashboardRoute)
+Router.use('/admin_staff_reports', staffReportRoute)
 
 export const APIs_V1 = Router
