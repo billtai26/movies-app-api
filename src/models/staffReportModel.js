@@ -113,5 +113,6 @@ export const staffReportModel = {
   update,
   deleteItem,
   getRevenueStats,
-  getAllReports
+  getAllReports,
+  validateBeforeCreate
 }
