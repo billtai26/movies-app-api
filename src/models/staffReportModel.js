@@ -18,10 +18,11 @@ const validateBeforeCreate = async (data) => {
   return await STAFF_REPORT_COLLECTION_SCHEMA.validateAsync(data, { abortEarly: false })
 }
 
+
 const createNew = async (data) => {
   try {
-    const validData = await validateBeforeCreate(data)
-    return await GET_DB().collection(STAFF_REPORT_COLLECTION_NAME).insertOne(validData)
+    const validData = await REPORT_SCHEMA.validateAsync(data, { abortEarly: false })
+    return await GET_DB().collection(REPORT_COLLECTION_NAME).insertOne(validData)
   } catch (error) { throw new Error(error) }
 }
 
@@ -58,6 +59,51 @@ const deleteItem = async (id) => {
   } catch (error) { throw new Error(error) }
 }
 
+const BOOKING_COLLECTION_NAME = 'bookings'
+const getRevenueStats = async (startDate, endDate) => {
+  try {
+    const results = await GET_DB().collection(BOOKING_COLLECTION_NAME).aggregate([
+      {
+        $match: {
+          paymentStatus: 'completed',
+          _destroy: false,
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$totalAmount' },
+          totalTickets: { $sum: { $size: '$seats' } },
+          totalBookings: { $sum: 1 }
+        }
+      },
+      { $project: { _id: 0, totalRevenue: 1, totalTickets: 1, totalBookings: 1 } }
+    ]).toArray()
+    return results[0] || { totalRevenue: 0, totalTickets: 0, totalBookings: 0 }
+  } catch (error) { throw new Error(error) }
+}
+
+// --- PHẦN 2: BÁO CÁO SỰ CỐ (Thêm mới) ---
+const REPORT_COLLECTION_NAME = 'staff_reports'
+const REPORT_SCHEMA = Joi.object({
+  staff: Joi.string().required(),
+  title: Joi.string().required(),
+  message: Joi.string().required(),
+  status: Joi.string().valid('Chưa duyệt', 'Đã duyệt', 'Từ chối').default('Chưa duyệt'),
+  createdAt: Joi.date().timestamp('javascript').default(Date.now),
+  _destroy: Joi.boolean().default(false)
+})
+
+const getAllReports = async () => {
+  try {
+    return await GET_DB().collection(REPORT_COLLECTION_NAME)
+      .find({ _destroy: false })
+      .sort({ createdAt: -1 })
+      .toArray()
+  } catch (error) { throw new Error(error) }
+}
+
 export const staffReportModel = {
   STAFF_REPORT_COLLECTION_NAME,
   STAFF_REPORT_COLLECTION_SCHEMA,
@@ -65,5 +111,7 @@ export const staffReportModel = {
   findOneById,
   getAll,
   update,
-  deleteItem
+  deleteItem,
+  getRevenueStats,
+  getAllReports
 }
