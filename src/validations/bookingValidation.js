@@ -7,7 +7,7 @@ import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from '~/utils/constants'
 const updateBooking = async (req, res, next) => {
   const correctCondition = Joi.object({
     // Cho phép Admin thay đổi các trường trạng thái này
-    paymentStatus: Joi.string().valid('pending', 'completed', 'failed'),
+    paymentStatus: Joi.string().valid('pending', 'completed', 'failed', 'refunded'),
     bookingStatus: Joi.string().valid('active', 'cancelled'),
     isUsed: Joi.boolean()
 
