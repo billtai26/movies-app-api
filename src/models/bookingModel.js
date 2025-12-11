@@ -25,7 +25,7 @@ const BOOKING_COLLECTION_SCHEMA = Joi.object({
   voucherCode: Joi.string().allow(null, ''), // Mã voucher đã dùng
   // -------------------------
 
-  paymentStatus: Joi.string().valid('pending', 'completed', 'failed').default('pending'),
+  paymentStatus: Joi.string().valid('pending', 'completed', 'failed', 'refunded').default('pending'),
   paymentMethod: Joi.string().valid('momo', 'cash').required(),
   transactionId: Joi.string().allow(null, ''),
   bookingStatus: Joi.string().valid('active', 'cancelled').default('active'),
