@@ -1,54 +1,54 @@
 import { showtimeModel } from '~/models/showtimeModel'
-import { cinemaHallModel } from '~/models/cinemaHallModel' // <-- Giữ nguyên import này
+import { cinemaHallModel } from '~/models/cinemaHallModel'
 import { movieModel } from '~/models/movieModel'
 import { ObjectId } from 'mongodb'
 
 /**
  * HÀM MỚI: Thêm lịch chiếu (Admin)
- * * ====================================================================
- * ===== ĐÂY LÀ HÀM ĐƯỢC CHỈNH SỬA ĐỂ NHẬN VÀ LƯU cinemaId =====
- * ====================================================================
  */
 const createNew = async (reqBody) => {
   try {
-    // 1. Lấy cinemaId, movieId, theaterId... từ body
     const { cinemaId, movieId, theaterId, startTime, basePrice, vipPrice } = reqBody
 
-    // 2. Lấy thông tin phòng chiếu (hall)
+    // 1. Kiểm tra phòng chiếu
     const hall = await cinemaHallModel.findOneById(theaterId)
     if (!hall) throw new Error('Cinema hall (theater) not found')
 
-    // 3. Lấy thông tin phim
+    // 2. Kiểm tra phim
     const movie = await movieModel.findOneById(movieId)
     if (!movie) throw new Error('Movie not found')
 
-    // 4. --- LOGIC VALIDATION MỚI ---
-    // Kiểm tra xem phòng chiếu (hall) có thuộc cụm rạp (cinema) không
+    // 3. Validate logic
     if (hall.cinemaId.toString() !== cinemaId) {
       throw new Error('This cinema hall does not belong to the specified cinema.')
     }
-    // -----------------------------
 
-    // 5. Logic "Biến đổi" ghế (giữ nguyên)
+    // 4. Tạo danh sách ghế cho suất chiếu
     const showtimeSeats = hall.seats.map(seat => {
+      // Xác định loại ghế từ Hall (standard/vip/couple)
+      const rawType = seat.seatType || 'standard'
+
+      // --- FIX: Chuyển 'standard' thành 'normal' để khớp với Showtime & Frontend ---
+      const type = rawType === 'standard' ? 'normal' : rawType
+      // ---------------------------------------------------------------------------
+
       let price = basePrice
-      if (seat.seatType === 'vip') price = vipPrice
-      if (seat.seatType === 'couple') price = basePrice * 2 // Ví dụ ghế đôi giá gấp 2
+      if (type === 'vip') price = vipPrice
+      if (type === 'couple') price = basePrice * 2
 
       return {
-        seatNumber: `${seat.row}${seat.number}`, // Tạo định danh 'A1', 'A2'
-        status: seat.status === 'broken' ? 'booked' : 'available', // Ghế hỏng sẽ không cho đặt
+        seatNumber: `${seat.row}${seat.number}`,
+        status: seat.status === 'broken' ? 'booked' : 'available',
         price: price,
+        // Lưu loại ghế đã chuẩn hóa (normal/vip/couple)
+        type: type,
         heldBy: null,
         heldUntil: null
       }
     })
 
-    // 6. Tạo object lịch chiếu mới (bao gồm cả cinemaId)
     const newShowtimeData = {
-      // --- THÊM DÒNG NÀY ---
       cinemaId: cinemaId,
-      // --------------------
       movieId: movieId,
       theaterId: theaterId,
       startTime: new Date(startTime),
@@ -66,15 +66,89 @@ const createNew = async (reqBody) => {
  * HÀM MỚI: Sửa lịch chiếu (Admin)
  */
 const updateShowtime = async (showtimeId, updateData) => {
-  // Logic: Chỉ cho phép sửa startTime
+  const showtime = await showtimeModel.findOneById(showtimeId)
+  if (!showtime) throw new Error('Showtime not found')
+
   const dataToUpdate = {
-    startTime: new Date(updateData.startTime)
+    updatedAt: new Date()
   }
-  const updatedShowtime = await showtimeModel.findOneById(showtimeId);
-  if (!updatedShowtime) {
-    throw new Error('Showtime not found or update failed')
+
+  if (updateData.startTime) {
+    dataToUpdate.startTime = new Date(updateData.startTime)
   }
-  return updatedShowtime
+
+  // LOGIC CẬP NHẬT GIÁ VÉ & LOẠI GHẾ
+  if (updateData.basePrice !== undefined || updateData.vipPrice !== undefined) {
+    const hall = await cinemaHallModel.findOneById(showtime.theaterId)
+    if (!hall) throw new Error('Cinema Hall not found to recalculate prices')
+
+    // Tạo Map loại ghế từ Hall
+    const seatTypeMap = {}
+    hall.seats.forEach(s => {
+      const key = `${s.row}${s.number}`
+      seatTypeMap[key] = s.seatType || 'standard'
+    })
+
+    // Fallback giá cũ
+    let currentBasePrice = 0
+    let currentVipPrice = 0
+
+    // Tìm mẫu giá cũ (dựa trên type đã lưu trong showtime: 'normal'/'vip')
+    const sampleNormal = showtime.seats.find(s => s.type === 'normal')
+    if (sampleNormal) currentBasePrice = sampleNormal.price
+
+    const sampleVip = showtime.seats.find(s => s.type === 'vip')
+    if (sampleVip) currentVipPrice = sampleVip.price
+
+    const newBase = updateData.basePrice !== undefined ? Number(updateData.basePrice) : currentBasePrice
+    const newVip = updateData.vipPrice !== undefined ? Number(updateData.vipPrice) : currentVipPrice
+
+    const currentSeatsMap = {}
+    showtime.seats.forEach(s => {
+      currentSeatsMap[s.seatNumber] = s
+    })
+
+    const newSeats = hall.seats.map(seatProto => {
+      const sn = `${seatProto.row}${seatProto.number}`
+      const currentSeat = currentSeatsMap[sn]
+
+      const rawType = seatProto.seatType || 'standard'
+      // --- FIX: Chuyển 'standard' thành 'normal' ---
+      const type = rawType === 'standard' ? 'normal' : rawType
+      // -------------------------------------------
+
+      let priceToSet = newBase
+      if (type === 'vip') priceToSet = newVip
+      if (type === 'couple') priceToSet = newBase * 2
+
+      if (currentSeat) {
+        if (currentSeat.status === 'booked') {
+          return {
+            ...currentSeat,
+            type: type
+          }
+        }
+        return {
+          ...currentSeat,
+          price: priceToSet,
+          type: type
+        }
+      } else {
+        return {
+          seatNumber: sn,
+          status: 'available',
+          price: priceToSet,
+          type: type,
+          heldBy: null,
+          heldUntil: null
+        }
+      }
+    })
+
+    dataToUpdate.seats = newSeats
+  }
+
+  return await showtimeModel.update(showtimeId, dataToUpdate)
 }
 
 /**
@@ -84,39 +158,28 @@ const deleteShowtime = async (showtimeId) => {
   const showtime = await showtimeModel.findOneById(showtimeId)
   if (!showtime) throw new Error('Showtime not found')
 
-  // QUAN TRỌNG: Kiểm tra xem đã có vé nào được BÁN chưa
   const hasBookedSeats = showtime.seats.some(seat => seat.status === 'booked')
   if (hasBookedSeats) {
     throw new Error('Cannot delete showtime with booked tickets. Please cancel bookings first.')
   }
 
-  // (Nâng cao: Nếu có ghế 'held', nên rollback... Tạm thời cho xoá)
   await showtimeModel.softDelete(showtimeId)
   return { message: 'Showtime soft deleted successfully' }
 }
 
 /**
  * HÀM MỚI: Lấy danh sách (Lọc, Phân trang)
- * (Hàm này đã được sửa ở bước trước để lọc theo cinemaId)
  */
 const getShowtimes = async (queryParams) => {
   try {
-    // Lấy thêm cinemaId từ query params
     const { movieId, theaterId, cinemaId, date, page, limit } = queryParams
 
-    let theaterIdsToFilter = null // Biến này sẽ chứa mảng các ObjectId của phòng chiếu
+    let theaterIdsToFilter = null
 
-    // ---- LOGIC MỚI ĐỂ LỌC THEO CỤM RẠP (CINEMA) ----
-    // Ưu tiên 1: Lọc theo Cụm rạp (cinemaId)
     if (cinemaId) {
-      // 1. Tìm tất cả các phòng chiếu (halls) thuộc cụm rạp này
-      // (Hàm findHallsByCinema đã có sẵn trong cinemaHallModel)
       const halls = await cinemaHallModel.findHallsByCinema(cinemaId)
-
-      // 2. Lấy ID của các phòng chiếu đó (dưới dạng mảng ObjectId)
       theaterIdsToFilter = halls.map(hall => hall._id)
 
-      // 3. Nếu cụm rạp này không có phòng chiếu nào, ta trả về mảng rỗng
       if (theaterIdsToFilter.length === 0) {
         return {
           showtimes: [],
@@ -124,15 +187,10 @@ const getShowtimes = async (queryParams) => {
         }
       }
     }
-    // Ưu tiên 2: Lọc theo Phòng chiếu (theaterId) - chỉ chạy nếu không có cinemaId
     else if (theaterId) {
-      // Gói nó vào một mảng để Model xử lý đồng nhất
       theaterIdsToFilter = [new ObjectId(theaterId)]
     }
-    // ---- KẾT THÚC LOGIC MỚI ----
 
-
-    // Sửa filters: Bỏ theaterId, thay bằng theaterIds (là mảng các ObjectId)
     const filters = { movieId, date, theaterIds: theaterIdsToFilter }
 
     const pageNum = parseInt(page) || 1
@@ -140,17 +198,18 @@ const getShowtimes = async (queryParams) => {
     const skip = (pageNum - 1) * limitNum
     const pagination = { page: pageNum, limit: limitNum, skip }
 
-    // Gửi filters và pagination đã cập nhật xuống Model
     return await showtimeModel.getAll({ filters, pagination })
 
   } catch (error) { throw new Error(error) }
 }
 
+/**
+ * Hàm giữ ghế (User)
+ */
 const holdSeats = async (userId, showtimeId, seatNumbers) => {
-  const HOLD_DURATION_MINUTES = 7 // Thời gian giữ ghế
+  const HOLD_DURATION_MINUTES = 7
   const heldUntil = new Date(Date.now() + HOLD_DURATION_MINUTES * 60 * 1000)
 
-  // Kiểm tra tính available của tất cả ghế trước
   const showtime = await showtimeModel.findOneById(showtimeId)
   const unavailableSeats = showtime.seats.filter(seat =>
     seatNumbers.includes(seat.seatNumber) && seat.status !== 'available'
@@ -160,7 +219,6 @@ const holdSeats = async (userId, showtimeId, seatNumbers) => {
     throw new Error(`Seats ${unavailableSeats.map(s => s.seatNumber).join(', ')} are not available`)
   }
 
-  // Thực hiện hold
   const result = await showtimeModel.updateSeatsStatus(
     showtimeId,
     seatNumbers,
@@ -169,12 +227,10 @@ const holdSeats = async (userId, showtimeId, seatNumbers) => {
     heldUntil
   )
 
-  // CHỈ KIỂM TRA modifiedCount > 0, không so sánh với seatNumbers.length
   if (result.modifiedCount === 0) {
     throw new Error('Seat reservation failed due to concurrent booking. Please try again.')
   }
 
-  // Kiểm tra lại xem tất cả ghế đã được hold thành công chưa
   const updatedShowtime = await showtimeModel.findOneById(showtimeId)
   const successfullyHeldSeats = updatedShowtime.seats.filter(seat =>
     seatNumbers.includes(seat.seatNumber) &&
@@ -183,7 +239,6 @@ const holdSeats = async (userId, showtimeId, seatNumbers) => {
   )
 
   if (successfullyHeldSeats.length !== seatNumbers.length) {
-    // Rollback nếu có ghế không được hold thành công
     await showtimeModel.rollbackSeatHold(showtimeId, seatNumbers, userId)
     throw new Error('Some seats could not be held. Please try again.')
   }
@@ -200,7 +255,6 @@ const getShowtimeDetails = async (showtimeId) => {
 }
 
 const releaseSeats = async (userId, showtimeId, seatNumbers) => {
-  // Gọi model để nhả ghế
   const result = await showtimeModel.releaseSeats(showtimeId, seatNumbers, userId)
   return result
 }

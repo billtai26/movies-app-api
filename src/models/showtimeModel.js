@@ -14,6 +14,7 @@ const SHOWTIME_COLLECTION_SCHEMA = Joi.object({
     seatNumber: Joi.string().required(), // Ví dụ: 'A1', 'A2', 'B1'
     status: Joi.string().valid('available', 'held', 'booked').required(),
     price: Joi.number().required(),
+    type: Joi.string().valid('normal', 'vip', 'couple').default('normal'),
     heldBy: Joi.string().allow(null).default(null), // userId đang giữ ghế
     heldUntil: Joi.date().allow(null).default(null) // Thời gian ghế bị giữ đến khi hết hạn
   })).required(),
