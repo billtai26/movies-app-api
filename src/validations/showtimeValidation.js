@@ -30,7 +30,9 @@ const createNew = async (req, res, next) => {
  */
 const update = async (req, res, next) => {
   const showtimeSchema = Joi.object({
-    startTime: Joi.date().iso().required()
+    startTime: Joi.date().iso(),
+    basePrice: Joi.number().min(0),
+    vipPrice: Joi.number().min(0)
   }).min(1)
 
   try {
