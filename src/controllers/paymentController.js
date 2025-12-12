@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+// src/controllers/paymentController.js
 import MomoService from '~/services/momoService'
 import { bookingModel } from '~/models/bookingModel'
 import { userModel } from '~/models/userModel'
@@ -277,11 +278,24 @@ export const paymentController = {
               await userModel.addLoyaltyPoints(updatedBooking.userId, pointsEarned)
             }
 
+            // 🔥 Lấy thêm thông tin để đưa cho FE
+            const [user, movie, showtime] = await Promise.all([
+              userModel.findOneById(updatedBooking.userId),
+              movieModel.findOneById(updatedBooking.movieId),
+              showtimeModel.findOneById(updatedBooking.showtimeId)
+            ])
+
             invoice = {
               bookingId: updatedBooking._id,
               userId: updatedBooking.userId,
+              userName: user?.fullName || user?.name || user?.email || '',
               showtimeId: updatedBooking.showtimeId,
               movieId: updatedBooking.movieId,
+              movieTitle: movie?.title || '',
+              // giả sử showtime có field startTime, theaterName, roomName
+              showtimeTime: showtime?.startTime || null,
+              theaterName: showtime?.theaterName || '',
+              roomName: showtime?.roomName || '',
               seats: updatedBooking.seats,
               combos: updatedBooking.combos || [],
               totalAmount: updatedBooking.totalAmount,
