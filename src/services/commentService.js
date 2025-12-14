@@ -1,5 +1,5 @@
 import { commentModel } from '~/models/commentModel'
-import { getIO } from '~/server' // Import hàm getIO từ server.js
+import { getIO } from '~/utils/socket' // Import hàm getIO từ server.js
 
 /**
  * Xây dựng cây bình luận từ một danh sách phẳng

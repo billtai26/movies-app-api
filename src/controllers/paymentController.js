@@ -11,7 +11,7 @@ import { env } from '~/config/environment'
 import { showtimeModel } from '~/models/showtimeModel'
 import { comboModel } from '~/models/comboModel'
 // 1. THÊM IMPORT getIO
-import { getIO } from '~/server'
+import { getIO } from '~/utils/socket'
 
 export const paymentController = {
   initializePayment: async (req, res) => {
