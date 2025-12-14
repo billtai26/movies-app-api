@@ -10,6 +10,8 @@ import { movieModel } from '~/models/movieModel'
 import { env } from '~/config/environment'
 import { showtimeModel } from '~/models/showtimeModel'
 import { comboModel } from '~/models/comboModel'
+// 1. THÊM IMPORT getIO
+import { getIO } from '~/server'
 
 export const paymentController = {
   initializePayment: async (req, res) => {
@@ -254,6 +256,14 @@ export const paymentController = {
               null,
               null
             )
+            try {
+              const io = getIO()
+              // Gửi sự kiện đến room của suất chiếu đó
+              io.to(updatedBooking.showtimeId.toString()).emit('seats:booked', seatNumbers)
+              console.log('socket sent seats:booked', seatNumbers)
+            } catch (error) {
+              console.error('Socket emit error:', error)
+            }
           }
 
           const movie = await movieModel.findOneById(updatedBooking.movieId)
