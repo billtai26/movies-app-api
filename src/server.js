@@ -48,7 +48,7 @@ const START_SERVER = () => {
 
     // 2. THÊM LOGIC LẮNG NGHE CHỌN GHẾ (HOLD)
     socket.on('seat:hold', ({ showtimeId, seatId, userId }) => {
-      console.log(`Client ${socket.id} held seat ${seatId} in showtime ${showtimeId}`)
+      // console.log(`Client ${socket.id} held seat ${seatId} in showtime ${showtimeId}`)
 
       // Gửi sự kiện 'seat:updated' cho TẤT CẢ mọi người trong phòng TRỪ người gửi
       // Để người khác thấy ghế chuyển sang màu xám ngay lập tức
