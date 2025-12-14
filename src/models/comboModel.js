@@ -83,7 +83,8 @@ const getAllAvailable = async ({ q, page = 1, limit = 10, priceMin, priceMax, st
       projection: {
         name: 1,
         description: 1,
-        price: 1
+        price: 1,
+        imageUrl: 1
       }
     })
     .sort(sortObj)
