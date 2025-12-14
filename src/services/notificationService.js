@@ -1,7 +1,7 @@
 import { notificationModel } from '~/models/notificationModel'
 import { userModel } from '~/models/userModel'
 import { mailService } from '~/utils/mailService'
-import { getIO } from '~/server'
+import { getIO } from '~/utils/socket'
 import { ApiError } from '~/utils/ApiError'
 
 /**

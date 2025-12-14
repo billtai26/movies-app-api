@@ -11,6 +11,7 @@ import { configurePassport } from '~/config/passport'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import aiRoutes from './routes/v1/ai.Route.js'
+import { initSocket } from '~/utils/socket'
 
 let io = null // Khai báo biến io
 
@@ -25,6 +26,9 @@ const START_SERVER = () => {
       methods: ['GET', 'POST']
     }
   })
+
+  // --- QUAN TRỌNG: Gán instance io vào utils để các controller khác sử dụng ---
+  initSocket(io)
 
   // Lắng nghe sự kiện kết nối từ client
   io.on('connection', (socket) => {
@@ -139,12 +143,3 @@ const START_SERVER = () => {
     process.exit(0)
   }
 })()
-
-// --- EXPORT HÀM getIO ---
-// Hàm này dùng để các service khác có thể lấy instance io và emit sự kiện
-export const getIO = () => {
-  if (!io) {
-    throw new Error('Socket.io not initialized!')
-  }
-  return io
-}
