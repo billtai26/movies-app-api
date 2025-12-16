@@ -29,6 +29,15 @@ function isComboRelated(message = '') {
   return keywords.some(k => text.includes(k))
 }
 
+function isPersonInfoRelated(message = '') {
+  const t = message.toLowerCase()
+  const keys = [
+    'đạo diễn', 'dao dien', 'director',
+    'diễn viên', 'dien vien', 'actor', 'actress', 'cast',
+    'ai đóng', 'ai dong', 'đóng vai', 'dong vai'
+  ]
+  return keys.some(k => t.includes(k))
+}
 // ======================= DB fetch =======================
 async function fetchMovies() {
   return await GET_DB()
@@ -136,6 +145,32 @@ Nếu người dùng hỏi về phim/combo thì khuyên họ hỏi rõ hơn (ví
   return completion.choices[0].message.content.trim()
 }
 
+async function peopleGeneralAI(message) {
+  const completion = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [
+      {
+        role: 'system',
+        content: `
+Bạn là Cinesta AI.
+Người dùng đang hỏi thông tin đạo diễn/diễn viên mà hệ thống KHÔNG có dữ liệu nội bộ và KHÔNG truy cập Internet.
+Vì vậy bạn sẽ trả lời theo kiến thức tổng quát đã được huấn luyện, NHƯNG BẮT BUỘC phải nói rõ đây có thể không chính xác 100%.
+
+Quy tắc bắt buộc:
+- Dòng đầu tiên phải có disclaimer rõ ràng, ví dụ:
+  "Theo kiến thức tổng quát của AI (có thể không chính xác tuyệt đối), ..."
+- Nếu không chắc chắn, hãy nói "mình không chắc" thay vì bịa chắc nịch.
+- Trả lời ngắn gọn, tiếng Việt, dễ hiểu.
+        `.trim()
+      },
+      { role: 'user', content: message }
+    ],
+    temperature: 0.6
+  })
+
+  return completion.choices[0].message.content.trim()
+}
+
 // ======================= ROUTE CHÍNH =======================
 router.post('/chat', async (req, res) => {
   try {
@@ -144,15 +179,26 @@ router.post('/chat', async (req, res) => {
 
     const movieMode = isMovieRelated(message)
     const comboMode = isComboRelated(message)
+    const peopleMode = isPersonInfoRelated(message)
 
     let reply = ''
+
+
+    // ✅ hỏi về đạo diễn/diễn viên: dùng peopleGeneralAI
+    if (peopleMode) {
+      // ✅ Không dùng API ngoài => trả lời theo kiến thức tổng quát + disclaimer
+      reply = await peopleGeneralAI(message)
+
+      await saveChat(userId, message, reply)
+      return res.json({ reply })
+    }
 
     // ✅ hỏi combo: trả thẳng data thật để không bịa + không “không có thông tin”
     if (comboMode && !movieMode) {
       const combos = await fetchCombos()
       reply =
         `Mình tìm thấy ${combos.length} combo hiện có. Bạn muốn combo rẻ, couple hay VIP?\n` +
-        '<<COMBOS>>' +
+        `<<COMBOS>>` +
         JSON.stringify(
           combos.map(c => ({
             id: String(c._id),
@@ -198,8 +244,8 @@ router.post('/chat', async (req, res) => {
 
       reply =
         moviePart +
-        '\n\nMình cũng gửi kèm combo hiện có nhé.\n' +
-        '<<COMBOS>>' +
+        `\n\nMình cũng gửi kèm combo hiện có nhé.\n` +
+        `<<COMBOS>>` +
         JSON.stringify(
           combos.map(c => ({
             id: String(c._id),
