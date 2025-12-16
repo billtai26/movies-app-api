@@ -10,19 +10,26 @@ const client = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1'
 })
 
-// ======================= Kiểm tra xem câu hỏi có liên quan phim không =======================
+// ======================= Detect intent =======================
 function isMovieRelated(message = '') {
   const text = message.toLowerCase()
-
   const keywords = [
     'phim', 'movie', 'đang chiếu', 'sắp chiếu',
     'rạp', 'đặt vé', 'suất chiếu', 'ghế', 'cinesta'
   ]
-
   return keywords.some(k => text.includes(k))
 }
 
-// Lấy phim từ MongoDB
+function isComboRelated(message = '') {
+  const text = message.toLowerCase()
+  const keywords = [
+    'combo', 'bắp', 'bap', 'nước', 'nuoc',
+    'đồ ăn', 'do an', 'snack', 'ăn gì', 'uong gi', 'uống gì'
+  ]
+  return keywords.some(k => text.includes(k))
+}
+
+// ======================= DB fetch =======================
 async function fetchMovies() {
   return await GET_DB()
     .collection('movies')
@@ -39,7 +46,21 @@ async function fetchMovies() {
     .toArray()
 }
 
-// Save chat
+// ✅ FIX: combos collection của m KHÔNG có _destroy => find({})
+async function fetchCombos() {
+  return await GET_DB()
+    .collection('combos')
+    .find({})
+    .project({
+      name: 1,
+      price: 1,
+      items: 1
+    })
+    .limit(30)
+    .toArray()
+}
+
+// ======================= Save chat =======================
 async function saveChat(userId, userMsg, botMsg) {
   if (!userId) return
   const now = new Date()
@@ -59,26 +80,29 @@ async function saveChat(userId, userMsg, botMsg) {
   })
 }
 
-// AI trả lời về phim
+// ======================= AI helpers =======================
 async function movieAI(message, movies) {
   const systemPrompt = `
 Bạn là Cinesta AI — trợ lý thông minh của hệ thống đặt vé Cinesta.
-Bạn chỉ được sử dụng dữ liệu phim bên dưới để trả lời khi câu hỏi liên quan đến phim:
+Bạn CHỈ được sử dụng dữ liệu phim bên dưới để trả lời khi câu hỏi liên quan đến phim:
 
 ${JSON.stringify(movies, null, 2)}
 
 Nhiệm vụ:
 - Phân tích câu hỏi.
-- Lọc phim phù hợp theo title, thể loại, mô tả, hoặc status (now_showing / coming_soon).
-- Nếu có phim phù hợp → trả về theo format sau:
+- Lọc phim phù hợp theo title, thể loại (genres), mô tả, hoặc status (now_showing / coming_soon).
+- Nếu có phim phù hợp → trả về theo format:
 
-<<MOVIES>> [
-  { "title": "Tên phim", "genre": "Hành động", "rating": 8.5, "poster": "..." }
+<<MOVIES>>[
+  { "id":"...", "title":"Tên phim", "genre":"Hành động", "rating":8.5, "poster":"..." }
 ]
 
 - Nếu câu hỏi chỉ là nói chuyện (không yêu cầu tìm phim) → trả lời tự nhiên.
 
-QUAN TRỌNG: Không được bịa thêm phim không có trong danh sách trên.
+QUAN TRỌNG:
+- Không được bịa thêm phim không có trong danh sách.
+- "id" phải lấy từ _id của DB nếu có.
+- "poster" ưu tiên posterUrl.
   `
 
   const completion = await client.chat.completions.create({
@@ -93,7 +117,6 @@ QUAN TRỌNG: Không được bịa thêm phim không có trong danh sách trên
   return completion.choices[0].message.content.trim()
 }
 
-// AI trả lời bình thường
 async function generalAI(message) {
   const completion = await client.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
@@ -102,7 +125,7 @@ async function generalAI(message) {
         role: 'system',
         content: `
 Bạn là trợ lý AI thân thiện. Trả lời tự nhiên, logic, hữu ích cho mọi câu hỏi.
-Không tạo phim hoặc dữ liệu Cinesta trừ khi được hỏi rõ ràng.
+Nếu người dùng hỏi về phim/combo thì khuyên họ hỏi rõ hơn (ví dụ: thể loại, mức giá).
         `
       },
       { role: 'user', content: message }
@@ -119,28 +142,83 @@ router.post('/chat', async (req, res) => {
     const { userId, message } = req.body
     if (!message) return res.json({ reply: 'Bạn muốn nói gì với Cinesta AI?' })
 
+    const movieMode = isMovieRelated(message)
+    const comboMode = isComboRelated(message)
+
     let reply = ''
 
-    if (isMovieRelated(message)) {
-      // Nếu câu hỏi liên quan phim → Movie Mode
+    // ✅ hỏi combo: trả thẳng data thật để không bịa + không “không có thông tin”
+    if (comboMode && !movieMode) {
+      const combos = await fetchCombos()
+      reply =
+        `Mình tìm thấy ${combos.length} combo hiện có. Bạn muốn combo rẻ, couple hay VIP?\n` +
+        '<<COMBOS>>' +
+        JSON.stringify(
+          combos.map(c => ({
+            id: String(c._id),
+            name: c.name,
+            price: c.price,
+            items: c.items
+          }))
+        )
+    }
+    // ✅ hỏi phim: dùng movieAI như flow của m
+    else if (movieMode && !comboMode) {
       const movies = await fetchMovies()
-      reply = await movieAI(message, movies)
-    } else {
-      // Nếu câu hỏi ngoài lề → General Mode
+
+      // map nhẹ cho prompt sạch hơn (optional)
+      const mapped = movies.map(m => ({
+        _id: String(m._id),
+        title: m.title,
+        genres: m.genres,
+        description: m.description,
+        posterUrl: m.posterUrl,
+        status: m.status,
+        averageRating: m.averageRating
+      }))
+
+      reply = await movieAI(message, mapped)
+    }
+    // ✅ hỏi cả phim + combo trong 1 câu: trả combo thật + phim từ AI (gộp)
+    else if (movieMode && comboMode) {
+      const [movies, combos] = await Promise.all([fetchMovies(), fetchCombos()])
+
+      const mapped = movies.map(m => ({
+        _id: String(m._id),
+        title: m.title,
+        genres: m.genres,
+        description: m.description,
+        posterUrl: m.posterUrl,
+        status: m.status,
+        averageRating: m.averageRating
+      }))
+
+      // gọi LLM 1 lần để ra MOVIES, còn COMBOS ta append data thật
+      const moviePart = await movieAI(message, mapped)
+
+      reply =
+        moviePart +
+        '\n\nMình cũng gửi kèm combo hiện có nhé.\n' +
+        '<<COMBOS>>' +
+        JSON.stringify(
+          combos.map(c => ({
+            id: String(c._id),
+            name: c.name,
+            price: c.price,
+            items: c.items
+          }))
+        )
+    }
+    // ngoài lề
+    else {
       reply = await generalAI(message)
     }
 
-    // Lưu chat
     await saveChat(userId, message, reply)
-
     return res.json({ reply })
-
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('AI Chat Error:', err)
-    return res.status(500).json({
-      reply: 'Xin lỗi, Cinesta AI đang gặp lỗi.'
-    })
+    return res.status(500).json({ reply: 'Xin lỗi, Cinesta AI đang gặp lỗi.' })
   }
 })
 
@@ -152,13 +230,14 @@ router.get('/history', async (req, res) => {
 
     const history = await AIChatModel.findByUser(userId)
 
-    res.json(history.map(h => ({
-      role: h.role,
-      content: h.content
-    })))
-
+    res.json(
+      history.map(h => ({
+        role: h.role,
+        content: h.content
+      }))
+    )
   } catch (err) {
-    res.json([])
+    return res.json([])
   }
 })
 
