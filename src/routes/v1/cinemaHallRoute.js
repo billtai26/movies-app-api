@@ -35,7 +35,7 @@ Router.route('/:id')
   // Xem chi tiết (Lấy cả phòng và mảng ghế)
   .get(cinemaHallController.getHallDetails)
   // Sửa thông tin chung (Tên, Loại)
-  .patch(
+  .put(
     protect,
     admin,
     cinemaHallValidation.updateHall,
