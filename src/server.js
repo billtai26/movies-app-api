@@ -120,9 +120,18 @@ const START_SERVER = () => {
     })
   })
 
-  httpServer.listen(env.LOCAL_DEV_APP_PORT, env.LOCAL_DEV_APP_HOST, () => {
-    console.log(`3. Hi ${env.AUTHOR}, Back-end Server is running successfully at Host: ${env.LOCAL_DEV_APP_HOST} and Port: ${env.LOCAL_DEV_APP_PORT}`)
-  })
+  // Kiểm tra xem có phải môi trường Production không (Dựa vào biến môi trường bạn đặt trên Render)
+  if (env.BUILD_MODE === 'production') {
+  // Lắng nghe Port từ Render cung cấp và bind vào 0.0.0.0
+    httpServer.listen(env.PORT, () => {
+      console.log(`3. Production: Hi ${env.AUTHOR}, Back-end Server is running successfully at Port: ${env.PORT}`)
+    })
+  } else {
+  // Môi trường Local Dev
+    httpServer.listen(env.LOCAL_DEV_APP_PORT, env.LOCAL_DEV_APP_HOST, () => {
+      console.log(`3. Local DEV: Hi ${env.AUTHOR}, Back-end Server is running successfully at Host: ${env.LOCAL_DEV_APP_HOST} and Port: ${env.LOCAL_DEV_APP_PORT}`)
+    })
+  }
 
   exitHook(() => {
     console.log('4. Server is shutting down...')
