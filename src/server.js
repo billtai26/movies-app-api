@@ -122,7 +122,7 @@ const START_SERVER = () => {
   })
 
   // Kiểm tra xem có phải môi trường Production không (Dựa vào biến môi trường bạn đặt trên Render)
-  if (process.env.BUILD_MODE === 'production') {
+  if (env.BUILD_MODE === 'production') {
   // Lắng nghe Port từ Render cung cấp và bind vào 0.0.0.0
     httpServer.listen(process.env.PORT, () => {
       console.log(`3. Production: Hi ${env.AUTHOR}, Back-end Server is running successfully at Port: ${process.env.PORT}`)
