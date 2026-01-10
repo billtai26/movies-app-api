@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable no-console */
 import express from 'express'
 import cors from 'cors' // Thêm cors
@@ -121,10 +122,10 @@ const START_SERVER = () => {
   })
 
   // Kiểm tra xem có phải môi trường Production không (Dựa vào biến môi trường bạn đặt trên Render)
-  if (env.BUILD_MODE === 'production') {
+  if (process.env.BUILD_MODE === 'production') {
   // Lắng nghe Port từ Render cung cấp và bind vào 0.0.0.0
-    httpServer.listen(env.PORT, () => {
-      console.log(`3. Production: Hi ${env.AUTHOR}, Back-end Server is running successfully at Port: ${env.PORT}`)
+    httpServer.listen(process.env.PORT, () => {
+      console.log(`3. Production: Hi ${env.AUTHOR}, Back-end Server is running successfully at Port: ${process.env.PORT}`)
     })
   } else {
   // Môi trường Local Dev
