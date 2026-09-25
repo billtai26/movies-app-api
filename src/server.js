@@ -100,15 +100,15 @@ const START_SERVER = () => {
   app.use(passport.initialize())
   configurePassport() // Gọi hàm config
 
-  app.get('/', (req, res) => {
-    res.status(200).json({
-      message: 'Movies App Backend API is running successfully!',
-      docs: '/v1'
-    })
-  })
+  // app.get('/', (req, res) => {
+  //   res.status(200).json({
+  //     message: 'Movies App Backend API is running successfully!',
+  //     docs: '/v1'
+  //   })
+  // })
 
   // Sử dụng Routers
-  app.use('/v1', APIs_V1)
+  app.use('/', APIs_V1)
 
   // AI Chat routes
   app.use('/v1/ai', aiRoutes)
